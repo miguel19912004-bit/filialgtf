@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Cargas - Canção Alimentos</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161d2e; --panel2:#1c2438; --border:#2a3450;
+    --text:#e8ecf5; --muted:#8b95ad; --accent:#3b82f6;
+    --s1:#64748b; --s2:#eab308; --s3:#3b82f6; --s4:#22c55e;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px;
+  }
+  h1{font-size:22px; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .toolbar{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px;
+  }
+  .toolbar input[type=text]{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:8px; font-size:13px; min-width:220px;
+  }
+  .toolbar select{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:8px; font-size:13px;
+  }
+  .stats{display:flex; gap:10px; margin-left:auto; flex-wrap:wrap;}
+  .stat{
+    background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+    padding:8px 14px; font-size:12px; color:var(--muted); text-align:center;
+  }
+  .stat b{display:block; font-size:16px; color:var(--text);}
+  .grid{display:flex; flex-direction:column; gap:14px;}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    overflow:hidden;
+  }
+  .card-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 18px; cursor:pointer; gap:12px; flex-wrap:wrap;
+  }
+  .card-head:hover{background:rgba(255,255,255,0.02);}
+  .head-left{display:flex; flex-direction:column; gap:2px;}
+  .viagem-id{font-size:15px; font-weight:600;}
+  .head-meta{font-size:12px; color:var(--muted);}
+  .head-right{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .totals{font-size:12px; color:var(--muted); text-align:right;}
+  .totals b{color:var(--text);}
+  .status-track{display:flex; gap:4px;}
+  .status-btn{
+    display:flex; align-items:center; gap:6px;
+    border:1px solid var(--border); background:var(--panel2); color:var(--muted);
+    font-size:11px; padding:6px 10px; border-radius:6px; cursor:pointer;
+    white-space:nowrap; transition:all .15s;
+  }
+  .status-btn:hover{border-color:var(--accent);}
+  .status-btn .dot{
+    width:14px; height:14px; border-radius:4px; border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; flex:none;
+    font-size:10px; background:var(--bg);
+  }
+  .status-btn.on-1{border-color:var(--s1);} .status-btn.on-1 .dot{background:var(--s1); border-color:var(--s1); color:#fff;}
+  .status-btn.on-2{border-color:var(--s2);} .status-btn.on-2 .dot{background:var(--s2); border-color:var(--s2); color:#1a1400;}
+  .status-btn.on-3{border-color:var(--s3);} .status-btn.on-3 .dot{background:var(--s3); border-color:var(--s3); color:#fff;}
+  .status-btn.on-4{border-color:var(--s4);} .status-btn.on-4 .dot{background:var(--s4); border-color:var(--s4); color:#04220f;}
+  .lock-icon{font-size:10px; color:var(--muted); margin-right:2px;}
+  .chev{color:var(--muted); font-size:13px; margin-left:4px;}
+  .admin-bar{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted);}
+  .admin-bar button{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer;
+  }
+  .admin-bar button:hover{border-color:var(--accent);}
+  .admin-on{color:var(--s4) !important; font-weight:600;}
+  .sync-bar{
+    display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:16px;
+    padding:8px 12px; border-radius:8px; border:1px solid var(--border);
+  }
+  .sync-bar .dot-status{width:8px; height:8px; border-radius:50%; flex:none;}
+  .sync-ok{background:rgba(34,197,94,0.08);} .sync-ok .dot-status{background:var(--s4);}
+  .sync-off{background:rgba(234,179,8,0.08);} .sync-off .dot-status{background:var(--s2);}
+  .sync-err{background:rgba(239,68,68,0.08);} .sync-err .dot-status{background:#ef4444;}
+  .card-body{display:none; border-top:1px solid var(--border);}
+  .card-body.open{display:block;}
+  .pedido{border-bottom:1px solid var(--border); padding:12px 18px;}
+  .pedido:last-child{border-bottom:none;}
+  .pedido-head{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    cursor:pointer; flex-wrap:wrap;
+  }
+  .pedido-cliente{font-size:13.5px; font-weight:600;}
+  .pedido-cidade{font-size:12px; color:var(--muted); font-weight:400; margin-left:6px;}
+  .pedido-tot{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .pedido-obs{font-size:11.5px; color:#f2b93a; margin-top:4px; font-style:italic;}
+  .itens{display:none; margin-top:10px;}
+  .itens.open{display:block;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th{
+    text-align:left; color:var(--muted); font-weight:500; font-size:11px;
+    padding:4px 8px; border-bottom:1px solid var(--border);
+    text-transform:uppercase; letter-spacing:.03em;
+  }
+  td{padding:5px 8px; border-bottom:1px solid rgba(255,255,255,0.04);}
+  td.num{text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .codigo{color:var(--muted); font-size:11px;}
+  .footer-note{
+    margin-top:26px; font-size:11.5px; color:var(--muted); line-height:1.6;
+    border-top:1px solid var(--border); padding-top:14px;
+  }
+  .badge{
+    font-size:10px; padding:2px 7px; border-radius:20px; border:1px solid var(--border);
+    color:var(--muted);
+  }
+  .brand-bar{display:flex; align-items:center; gap:14px; margin-bottom:18px;}
+  .brand-bar img{height:44px; width:auto; display:block;}
+  .brand-bar .logo-box{
+    background:#fff; padding:8px 14px; border-radius:8px; display:flex; align-items:center;
+  }
+  .brand-bar .titles h1{margin:0;}
+  .brand-bar .titles .sub{margin-bottom:0;}
+  .empty{padding:30px; text-align:center; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="brand-bar">
+  <div class="logo-box"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAtsAAAJYCAYAAACzVCreAAAACXBIWXMAAAsSAAALEgHS3X78AAAgAElEQVR4nO3dT3ITWbo34Lc7eg7fSEPUK8C1ArJXUO4VoFpBuaealJho2mYFJVbQZgWdrODaK7j2UKOLV8A3yGMQYIP/KPWezHyeCEfBjY7w79pI+dPJ95z8y6dPnwIAANi/v2YHAACAsVK2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ8o2AAD0RNkGAICeKNsAANATZRsAAHqibAMAQE+UbQAA6ImyDQAAPVG2AQCgJ3/LDgAAQD9mzfIoIp5n53iE8227/pgdYh/+8unTp+wMAADc06xZPo+Io4iYl6+bv0f577OUYPt1HRGrbbs+zQ7yVMo2AEClZs2yiS/F+ijGU6bv65/bdn2WHeIpjJEAAFRg1izn0ZXppny9TIxTi5OIULYBAHiYMg7SlK/jiHiRmYd+KNsAAAdSVq+PoyvYv6aG4SCUbQCAHu0U7EUYDZkcZRsAoAezZrmIrmRbwZ4wZRsAYE/KKvZJdKvYUzo1hDso2wAATzRrlsfRlexX2Vmoi7INAPBIZVRkFU4S4Q7KNgDAA5Qj+07Kl1ERfkjZBgC4ByWbx1C2AQB+ooyLnIaSzQMp2wAAdygbH0/DTDaPpGwDAHyjHOG3CaeL8ETKNgBAsTOX/Ud2FsZB2QYAiIhZs2yiW802MsLeKNsAwKSV1exNeKw6PfhrdgAAgCxlA+RlKNr0xMo2ADA5ZTV7FRG/J0dh5JRtAGBSZs3yKLqxkZfJUZgAYyQAwGSUh9O0oWhzIFa2AYBJmDXLTUS8zs7BtCjbAMColfnsNqxmk8AYCQAwWmU++zIUbZIo2wDAKO3MZz/LTcKUGSMBAEanFO0/s3OAsg0AjIqNkNTEGAkAMBqKNrVRtgGAUVC0qZGyDQAMnqJNrcxsAwCDNmuWZxHxa3YOuI2VbQBgsMqKtqJNtaxsAxzYrFk2EbGIiHlqkBznEXG6bdeX2UEYPqMjDMFfPn36lJ0BYDKc/RsREdcR0Wzb9Xl2EIZL0Z6MD9t23WSHeApjJACHdZodoALPws+BJ5g1y9NQtBkIZRvgQMr4iMdGd15lB2CYyt2h37NzwH0p2wDAIJQPrFMfw2JglG0AoHqzZnkUEWfZOeChlG0AoGqzZvk8uqJtDIvBUbYBgNqdRcSL7BDwGMo2AFCtWbNchQ21DJiyDQBUqWyI/CM7BzyFsg0AVGdnThsGTdkGAGpkQySjoGwDAFWZNcuTMKfNSCjbAEA1ynna/87OAfuibAMANdlkB4B9UrYBgCqUY/5eZueAfVK2AYB0s2Y5D8f8MULKNgBQg012AOiDsg0ApJo1y0U4fYSRUrYBgDTl4TWn2TmgL8o2AJDpJDy8hhFTtgGAFDZFMgXKNgCQZZUdAPqmbAMABzdrlk1EvM7OAX1TtgGADKvsAHAIyjYAcFBlVdtRf0yCsg0AHNoqOwAcirINAByMVW2mRtkGAA5plR0ADknZBgAOopyrbVWbSVG2AYBDWWUHgENTtgGA3s2a5fNwrjYP9zE7wFMp2wDAIZxkB2CQTrMDPJWyDQAcwiI7AINyFRH/2LbrNjnHk/0tOwAAMG6zZnkcES+yc0zIVUScl6/L8hURcb5t14MfyxgaZRsA6NsiO8DIXUVEGxFnEdEq1HVRtgGA3pSNkb9m5xih6+jK9em2XZ9nh+FuyjYA0KdFdoCRuYruCMUzK9jDoGwDAH1aZAcYiauIWG3b9SY7CA+jbAMAvShPjHyZnWPgrqMbFVllB+FxlG0AoC/H2QEG7n1EnGzb9WV2EB5P2QYA+rLIDjBQ19GV7E12EJ5O2QYA9s4IyaNdRMTCCSPjoWwDAH1osgMM0IeIOHbKyLgo2wBAH8xrP8y7bbteZIdg//6aHQAAGKUmO8CAKNojpmwDAHs1a5ZNRDzLzjEQivbIKdsAwL412QEGQtGeAGUbANi3JjvAAFwo2tOgbAMA+/YqO0DlrsMHkslQtgGAvSnz2vyY4/0mRNkGAPbpKDtA5d5s23WbHYLDUbYBgH1Stu92sW3Xq+wQHJayDQDsU5MdoGIn2QE4PGUbANinF9kBKvXO+Mg0KdsAwF7YHPlDq+wA5FC2AYB9mWcHqNS7bbu+zA5BDmUbANiXeXaASq2yA5BH2QYA9qXJDlAhq9oTp2wDAPvyPDtAhTbZAcilbAMA+/IyO0BlrpxAgrINANCPs+wA5FO2AYAnc+zfrTbZAcinbAMA7N/1tl2fZ4cgn7INAOzDUXaAyrTZAaiDsg0A7IOTSL7WZgegDso2AMD+GSEhIpRtAIC9c+QfN5RtAGAfmuwAFbnODkA9lG0AgP0yQsJnyjYAAPRE2QYA2K82OwD1ULYBAKAnyjYAAPRE2QYAgJ4o2wAA0BNlGwAAeqJsAwBAT5RtAADoibINAAA9UbYBAKAnyjYAsA9tdoCKnGUHoB7KNgDwZNt2vYqIi+wcFXizbdfn2SGox9+yAwAA47Bt10ezZrmIiHlylCzttl232SGoi7INAOzNtl1vsjNATYyRAABAT5RtAFLMmuVxdgaAvinbAGQ5yQ4A0DdlG4Asr2bNsp01yyY7CEBfbJDk0WbN8nlEHJW/NuW/u/+3m7+/PGAspuE6IjYRsdq264/JWXiaVxHx31mzzM5Rk+uI2GzbtZV/fmjWLI+iu87O48sJMM3O/2QeES8OmWmPLiLiZAynu/zl06dP2Rmo2E6hvnlBN6FAU4/323Y9qLnfWbP0pst9vdu260V2CPKVuz/z8nXz56GW6If6x9ALt7LNZ6VYN9EV6yam9WJmuH4Z0gMklG0e6O/bdn2ZHYLDmTXLeXx9LZ764tbgFlW+ZYxkwsrtpya+vKAVa4boeXYA6NE8Ii6TM9CjnXJ98+Va/LXBv8cr2xPyzQv6OCKeJcaBqboIK1UwaWWxaxFWridB2R45L2iojg2dMEE71+PjsHo9Kcr2CHlBQ9XOozuBAxi5ckd5Ub5cjydK2R4JBRsGw8o2jNysWS6iuyb7YI2yPWTl9JBFdE9hU7BhGNqI+CM7BLBfO6vYJ2FPFDuU7QEq520uIuJ1bhLgES6zAwD7U+4sn4RrMndQtgfCKjaMw7ZdX86a5XVY+YJBKwtfqzAqwk8o25Urt6VOoivaLs4wDjZJwkAp2TyUsl2pUrJX4bYUjFEbLtQwKEo2j6VsV8Y8NkxCGzZJwiBY/OKplO1KlBfzaUT8mhwF6Nm2XbezZpkdA/iBslfqJHww5omU7WQ+McNkfQi3o6FKs2Z5HN0CmAMJeDJlO0n5xLyKiN+TowA5zkLZhqqUBbBNeG2yR3/NDjBFs2Z5Et1Zu4o2TFebHQD4olybnRTE3lnZPqCy+XETbkvB5G3b9fmsWV6F9wNIZTWbvinbB1BGRk7DXDbwtbNwhwvSzJrlIrrrs+dY0Btlu2flttQqvJCB721C2YaDK4tgm3ACGAegbPfEbSngZ8ooyUVEvMzOAlMxa5ZH0d1VMsLFQdgg2QObLIAH2GQHgKkoYyP/E4o2B2Rle4/KbSnHeQEPsYmIf2eHgLGbNctN2DtFAivbe1IOwL8MRRt4gG27/hgR77JzwFjNmuXzWbM8D0WbJFa2n8jDaYA9WIUiAHtnPpsaWNl+gvIibkPRBp5g264vo3t8O7An5dkWbSjaJFO2H6mMjbThFAFgP1bZAWAsykbI/4Zjd6mAsv0Is2Z5GhH/CS9iYE+27boNq9vwZKVo/5mdA26Y2X4Ap40APVtFtxoHPEI5etfpPlTFyvY97cxnK9pAL6xuw+OVo/0UbaqjbN/DziYL89lA3xbZAWBonKFNzZTtn7DJAjikcjLJ2+wcMBSKNrVTtn+gzH7ZZAEc2ioirrNDQO3KgpiiTdWU7TuY/QKylKdKnmTngJo5dYShULZv4ZYUkG3brjdhsyTcStFmSJTtbyjaQEUWYZwEvlJOB1O0GQxlu5g1y+ezZnkWijZQibJZcpEcA6qxcwwvDIayHZ8fVtNGxK/JUQC+sm3XZxHxLjsHZCvX6k04HYyBUbY7Z+EMbaBeJxFxkR0CkrlWM0iTL9tlRttTIYFqldNJFmF+m4maNcvTcK1moCZdtm2GBIZi267Pw/w2E1ROHvk9Owc81mTLtqINDE2Z3/5Xdg44lLIh8jQ7BzzFJMt2uR2laAODs23Xp2HDJBNgQyRjMbmy7XYUMHTbdr0IhZvxW4UNkYzApMr2rFkeh4PwgREohdsJJYxSuV5bGGMUJlO2y9zXJjsHwB41oXAzMjvjIzAKkyjbOw+tMfcFjEY5ErAJhZtx2YTrNSMyibIdijYwUtt2/XHbro/CDDcjUMZHPM2ZURl92S5H/NlgAYyaTZMMnfERxmrUZbucPOKIP2ASSuF2DjdDdRruQjNCoy3bZUOkk0eASSnncP8zPNqdAZk1yyYsjjFSoyzb5VbUWXYOgAzlSZNN2DjJcHhKJKM1yrId3czXi+wQAFm27fo8usJtjpuqzZrlSdhbxYiNrmyXF62dzMDklZNKFhHxWxgroULlTvQqOwf0aVRlu8xp/zs7B0BNtu16ExFHEfEhOQp86yRsimTkRlW2w5FBALfatuvLbbtuwio3lZg1y3lE/JGdA/o2mrI9a5anYeYL4IfKKvc8It7mJgHjI0zDKMp2OTLo9+wcAENQZrlPIuKXMFpCgrKq7ag/JmEUZTuMjwA82LZdn5fRkn+E0s1hrbIDwKEMvmzPmuUqHPMH8Gjbdt0q3RyKVW2mZtBlu5w+YnMFwB7slO5fwvnc9GeVHQAOadBlOzxxCmDvynjJIiL+X0T8KzyJkj2xqs0U/S07wGPNmuUiIl5l5wAYq227/hjdosZpuZO4iIjjMLrH4y2yA8ChDbJslydOWdUGOJDy+PeTiDgpxbuJrnhb9OjXx+wAe3aSHQAObZBlO7p5L0+cAi627brNDjE1pXifR7fi/Ty6p1M25esovD/vy0X5WY9CuSPt3wYPNfjF1cGV7TLv5Uxt4EN0K6skKqMmbfmKiM/v0/PoyvfNn5+HB489xBj/fVvV5qHebNv1WXaIp/rLp0+fsjM8yKxZtuG25RBcR7fy9bH8N775822Oorsg7/7ZKtnDvIuIy/Lnm5//GH0c04rf1OyshnO70f37LqNH/5OdY2Kuorse3FwLLuPL9WEIzsuH+cEbVNkuT4r8b3YOvnMR3arWeURc9nFbv/zu5/HldrUVsof59sPPze9qVBd0oE6zZrkJp5D07eZa3EZEO5aiOgZDK9vnoWTV4OYFfZY5LztrlsfxZU7Uv4vHuSnhZ9G9OSvfwN7NmuXHcJeyDxfRPUX7bNuuL3OjcJfBlO2yseLP7BwTVvULusyIHkd3rJTi/XhX0RXvjeIN7IPrdy/eRcSp9+lhGFLZvgxnux7aVXQFe1Njwb5LKd6L8uXfzONdRbcLfON2JPBYs2Z5FhG/ZucYiXcRsRrSNZmBlG2fig/uQ3SfmAe/A7iMmpyETbVPcR3lwSZKN/AQZTPs/2XnGIH3EXGiZA/TUMr2ZVihPITRfmIuO+FPwgadp1C6gQexWPZkVxGx8DyBYau+bHuhHsRoS/a3yojJabil+RRX0a2wDP7OB9AvIyRP8ja6a7PFjYEbQtm+DKvaffkQXWma3AaLcpTgKoyXPMX76FZcXAiA7xghebTr6N5bLWiMRNVl27navbEyWZQ7J6fhSKrHuoqI4yl+YAN+zJ3pR/GeOkJ/zQ7wE6vsACP0NiKOFO3Otl1vontYztvcJIP1IiL+p1xUAXY12QEG5iK667OiPTLVrmx7tOve2WTxE+VOyllY5X6st9t2fZIdAqiDB9k8yEVENMbyxqnmlW0X7f15H92n5TY5R9XKz2ce3c+Lh/u9PJIZmLiyYKZo34+iPXJVrmzbVLFXv5VRCR5g1ixPIuLf2TkG6t22XS+yQwB5vIfem6I9AbWubFvVfrrriPhF0X6cbbs+jYhfovs58jCvy4UWmK4mO8AAXIWiPQm1rmxfhuP+nsIn5T0p53KfRcTL5ChD5K7KT5R9ApNinG0azGv/1HV012mbISegurJdHq/9n+wcA/YuumP9FO09KWNNZ+FM7odyMblF+fd0GtN+mumbbbteZYegHw44uBeLERNS4xjJIjvAgL3btmsPGdmzbbv+uG3XTXQfZLi/ZxGxyQ5RoU1Mu2hHRPwxa5ar7BD05ig7QOXeK9rTUlXZLis+Huv6ODal9az8fBXuh3mpVH1RxpK8x3XM9Y9Xkx2gYtdhUXFyqirb4R/gYynaB6JwP8of5bYy3dGSdMzzjpfX+92MeU6Qsj18ivaBKdyPcpodADgYG8pv98H4yDRVU7bL7VUv0IdRtJOUn7uH39zfq7L5GRgxd7F+aJUdgBzVlO2IcCF+mAtFO90iumMWuR+r2zB+8+wAlfrg2MvpqqlsL7IDDMhF2ICSrszdNdE9mICfezFrlovsEECvrGzfbpUdgDxVlG0jJA9yHRGO96tE+T0chydN3tciOwDQK2X7e1a1J66Ksh1GSB5i4SEhdSm/D8eY3c8rM50was+zA1Rokx2AXLWU7UV2gIF4u23XZ9kh+F7ZYe6EkvvxwQTGy5N2v3btBBLSy3Z5kI0Rkp+72LZrJaVuJ2HD5H24kwVMhQUy8st2uPDe1yI7AD9W5rcX2TkG4JljAGF8Zs2yyc5QIWWbKsp2kx1gAP5lTnsYyu/pTXaOAWiyAwD0zegnEXWUbStcP3axbdfOJx6QbbteheMAf8brHsZnnh2gMh+yA1CH1LJdTiV4lplhABbZAXiURXaAyr0oR34C4zHPDlCZNjsAdche2W6Sv3/t3hkfGaZypqrTSX6syQ4A0KM2OwB1ULbrdR2OSBu6VXjYzY802QEAemSxjIhQtmt26imRw7Zt15cRYd7+bk12AGCvmuwANXEN50Za2S7zmua1b3cdStpYnIbV7buY2wbGyuZIPstc2W4Sv3ftrGqPRPk9+uB0N49uB2DUMsu2i+ztrGqPj9Xtu3kfAMbIvDafKdv1sao9MuX3ucnOUakmOwBAD1zH+SyzbL9K/N4122QHoBfuVtzOh24ARi2lbJeH2fC9d+UEC0am/F7fZ+eo0DObJAEYs6yVbWX7dpvsAPRqkx2gUt4PABitrLI9T/q+NbsqTx1kpLbt+ixslLyNsg3AaGWV7Sbp+9bsLDsAB7HJDlAhZRuA0bKyXY9NdgAOYpMdoELPswMAQF+yyvaLpO9bq6ttu3Ym5wSU3/NVdo7KOJkIgNE6eNl2EsmtjJBMS5sdoDZOJAFgrDJWtt0y/l6bHYCD8uHqe/PsAADQh4yybWX7G+WUCqajzQ5QoXl2AADog5XtfB+yA3BY5fHtF9k5KjPPDgAAfbCyna/NDkCKNjtAZXwIB2CUrGzncwrJNLXZASrjQzgAo6Rs52uzA5DChywAmICMsv0y4XvW6rrM7zIx23Z9mZ2hMvPsAADQh6yH2tCxujltNsd+4UFXAIySsp1L2Z62y+wAAEC/Dlq2PT3yO0ZIpu0yO0BNZs3Sfg4ARufQK9supl9rswOQ6jI7QGV8GAdgdIyRQJ7L7AAAQL+U7VyX2QEAAOiPsp3I8W/Ttm3XbXYGAKBfyjYAAPTk0GXbBigAACbDaSQAANATYyQAANATZRsAAHqibAMAQE8OXbYvD/z9AAAgjbINAAA9MUYCSWbNcp6dAQDol7KdaNYsnTs+bfPsAABAv5TtXM4dBwAYMWU71zw7AKnc2fjax+wAALBvNkjmmmcHIJU7Gzu27fo8OwMA7NtBy/a2XV8e8vsNwDw7AKmsbAPAyBkjyTXPDkCqeXYAAKBfGWX7OuF71upVdgBSvcwOUJGL7AAA0IeMsm0uc4fj/6Zp1iyb7AyVsTkSgFEyRpJP2Z4mv3cAmAAr2/mUrmnye/9amx0AAPqQUbbdLv5akx2AFE12AACgfxll+zLhe9bs5axZOm95QmbNch4RL7JzVMYdLwBGSdmuw3F2AA6qyQ5QIXe8ABglZbsOTXYADsqHq29s23WbnQEA+nDwsu0pkrdSviaijAz9mp2jMs7eB2C0so7++5D0fWv1bNYsFe5p8Hv+nnltAEYrq2ybz/yeEjYNfs/fu8wOAAB9ySrbVrK+d+xUknEzQnIn7wcAjFZW2W6Tvm/NnoVVz7FbZAeolLINwGhlle3LpO9bu5PsAPTK7/d2yjYAo5VStsuJJE4g+N7LWbNsskOwf+X36kE237vatmt7OAAYrayV7QirWXdZZAegF6vsAJXyPjBh5WmqAKOWWbbbxO9ds9cuQONSfp+vsnNUStmetnl2AIC+Wdmu0yo7AHu1yg5QsTY7AAD0ycp2naxuj0T5Pb7OzlGrCT6m3Xz6146yAwD0La1sl01RF1nffwBW2QHYi012gIpN7vW/bdfu6H3NswWA0ctc2Y4wSvIjr51MMmzl92dW+25tdgDSNdkBAPqWXbbb5O9fu1V2AJ7kNDtA5drsAKSbZwcA6Ft22T5L/v61ezVrlh6EMkDl9/YyO0fl2uwASa6yA1Tkhf0pwNillm1z2/eymjVLc40DUsrDKjlG7S4m/DCby+wAlWmyAwD0KXtlO2K6q1v39SxsshuaTXS/N+7mrhY3muwAAH2qoWy76P7cr7NmeZwdgp8r4yM2Rf7clF/3bXaAynhvA0YtvWyXc3avk2MMwcZsY91mzfIojI/cx7Uj8NjxzGICMGbpZbtoswMMwLOY9mpg1cpc/SaMj9zH1P8d+6DxPWUbGK1ayvbUL7739XLWLB0nV6fTcPrIfU399T7VjaE/8tpGcGCslO3h+X3WLBfZIfii/D48kv1+rrftetKv9wk+ov6+HHMKjFIVZbscAfY+O8eA/Fnmg0lWnhL5Z3aOAZl00d5hn8r3FtkBAPpQRdkuXIQfplW4c5Wfv3+3D+Pn1TG3/b0X7toBY6RsD9ez6E4oMeeYoJwM04YNkQ8x+RGSHcr27U69pwFjU03ZNkryKC+jW+F2cTqg8vM+C0X7oRTtL5Tt2z0Ls9vAyFRTtotNdoABUrgPqPyc23DyyGNssgNURNm+2x+eKQCMSVVlu9xitnHo4RTuA1C0n+TKKRxfeKjPT22yAwDsS1Vlu9hkBxiom8I9zw4yRmUz5Hko2o+1yQ5QoQ/ZASr2atYsjZMAo1Bj2fbQlsd7GRHnTinZr/LzbCPiRXKUIdtkB6iQ1e0f+7f3MmAMqivb23Z9GVZ8nuJZdCvcHn+8B+UosjZshnyK9+V1zdfa7AADcGY8Dhi66sp2sckOMHDPIuI/s2a5yg4yZLNmeRrdA2sU7afZZAeoVJsdYABehP0owMBVWba37XoTEVfZOUbgj1mzdKF6oFmzfD5rlm1E/J6dZQSunK19u3Lc6UV2jgF4GcYLgQGrsmwXm+wAI/EqIi7LY8X5iTJ+cxndz42nU5J+rM0OMBCvZ81ykx0C4DFqLtsu0vvzLCL+O2uWns52h7KafRoR/wljI/tyHT40/0ybHWBAFG5gkKot2+UW67vsHCPze3SnlTTZQWpSVrPPw9jIvm3K65g7GLF5sNdG44ChqbZsF6vsACP0IrpV7rOpn8k9a5bzWbM8i24127F+++fu1P28zw4wMK+i2zTpWEBgEKou2+W4MKvb/fg1ulXu1dRWicrIyCoi/je6nwP7985xf/dmdfvhbh7i5YhToHpVl+1ikx1gxJ5FxB/RbaAcfeneKdmX0f3/TX9W2QEGRNl+nJsjTu1FAapWfdnetus2POSmb6Mu3WVcZBVfSrYNkP2yqv0AZa7dKMnj3exFscoNVKn6sl2ssgNMxE3p/r9Zs9wMfSZy1iybcnrB/4aSfUir7AADZHX7aV5Et8ptlhuozl8+ffqUneFeykNGnH18eBfRjfKcDWG1smz6PI6Ik7DpMcO7bbteZIcYmnI36f+yc4zIu+hOw2mTc0yK6/RX3mzb9So7BHUYUtmeR7dCSZ4qi/dOwV5Et3GKPH+v6d/GkJSTcWzY3a8P0ZXuTXaQKVC2v6Js89lgynZERBkJeJ2dg4iIuIrugRxtRLSHLFilXDc7X1aw62BV+wnKzPF/snOM1HV0ozpn0b1fOf+9B8r2V5RtPhta2Z6H1e1aXUf3YJg2uo2IlxFx/pSLWrm1fhQR8/LVlL+bva7PdUTMlZinmTXLy/Dh8RA+RPdedR7d+9RlapqRULa/omzz2d+yAzzEtl1fzprlm3BsW42eRfcm+9Ub7axZRnSr4Jc7/+fziNgtZfPytft3hWNYThXtvTgLTzI9hK/eq8r71EV8eV+6jK/fs2q28WEB6jaosl2cRrf5zermcLyIr8uzlY9xuQpPi9yX01C2s+zu9xjSe9Qfs2b5m7l0qNdQjv77rKyenWTnAD47saq9H2WF0pnbPNSfZcwSqNDgynZERPkEf5GdA4gP23btjOj9cpeAx2iyAwC3G2TZLhbZAQB3mfatnA19lRyD4ZlnBwBuN9iyvW3X5xHxNjsHTNib8jpk/1bZAQDYj8GW7WIVVoAgg02RPSqjct7bAEZg0GXbZklIs7Apsner7AAAPN2gy3ZERNmcZfc+HM7bMldMj6xuA4zD4Mt2sYjuCXZAv67CiushrbIDAPA0oyjb5Xb2IjsHTIDxkQOyujAvRaoAABIESURBVA0wfKMo2xGfx0neZeeAETM+kmOVHQCAxxtN2S5OwioQ9OEilL4UHuIFMGyjKtvl9vZxdg4YmeswPpLNqUsAAzWqsh3x+WE3/8rOASNy4uE1ucr4jlOXAAZodGU7ImLbrk/DhQn24V0ZYyDfSTh1CWBwRlm2i0WY34anuAjjC9XYtuvL8NROgMEZbdnemd+2EgQPZ067Qtt2vQqLCACDMtqyHfF5ftvKHDzcwpx2tRbZAQC4v1GX7YjPx2a9zc4BA/KmnFtPhcpmSe9pAAMx+rIdEbFt1ydhwyTcx7syqkDdVmGcBGAQJlG2i0V4MAT8iA2RA1Fm6RfZOQD4ucmU7XJxasKGSbjNRUQ0NkQORxkneZMcA4CfmEzZjlC44Q5OHhmoMvLjjh1AxSZVtiM+n1DSZOeASlxHt6Lt5JHhcsQpQMUmV7YjPhfu37JzQAWOFe1hKw+7WSTHAOAOkyzbEZ+PBFS4mbLfytwvA1eOanQcIECFJlu2IxRuJu238u+fkShHnH7IzgHA1yZdtiMUbiZJ0R6v43D+NkBVJl+2IxRuJkXRHrFyoowNkwAVUbYLhZsJULQnoGx4Pc7OAUBH2d6hcDNiivaElI2v3ssAKqBsf0PhZmSuQ9GepPI7/1d2DoCpU7ZvUS5S/whzjwzbzQNrNtlByLFt16cR8S47B8CUKdt3KLdhm1C4GSZPhiQiIrbtehEKN0AaZfsHSlE5ioiL7CzwABcRMVe0uaFwA+RRtn+iPAq5CQ+LYBjeR7ei/TE7CHVRuAFyKNv3sG3XH7ftugkXKur2dtuujxVt7qJwAxyesv0A5ULlpBJq9Ft5XDf8kMINcFjK9gOVkx1+CRsnqcNVRPzixBEeohTut9k5AKZA2X6EsvFsHua4yfUhIo5shOQxyp0Qd+oAeqZsP9LOHPeb7CxM0pttu7YRkifZeYiXO3UAPVG2n2jbrlfhATgczlVE/KP8u4MnK4W7Ce9hAL1QtvegPABnHt2xa9CX99GNjbTJORiZndE4zxQA2DNle0/KWMlxRPwrrBCxX9fRnTbiWD96U/5tNeGkEoC9Urb3bNuuT6N76qTNk+zDzSbITXYQxq8sGiyiWzQAYA+U7R5s2/Vl2TxplZvHuo6If5VNkJfZYZiWsmjwS3R7BAB4AmW7Rzur3Ga5eYj3ETEv/34gRZnj9v4F8ETKds/KKvdxRPwzrBLxYzcnjZjNpgo7e1EcDwjwSMr2gWzb9Vl0q0TO5eZb19Gdmz130gg1KnsG7EUBeARl+4DKKtEqIv4ebs3SeRfdBshVdhD4EXtRAB5H2U6wM1ryj7BSNFUfohsZWdgAyZCUvQTzsGAAcC9/yw4wZWVkoJk1y+OIOI2IF6mBOISLiDgxLsKQlT0Fx7Nm2UTEJrx3AdzJynYFtu36bNuu59FtQrKJcpyuonswjSdAMhrbdt2W9643YbQE4FbKdkW27XqjdI/OTcmeezANY1X2HMwj4m1uEoD6KNsV2ind/wwz3UN1M5OtZDMJZQP4SXQbwD3yHaBQtitWxkua6DZSungNw7voSnZjXIQpKhvAF6F0A0SEsj0IZS5yEd3Fy2xkfa6i+738vZwu0ubGgXxKN0DHaSQDUo6IW0XEatYsFxGxiIhXeYkm731EnBkTgbuV963FrFmuonvPOomIZ4mRAA5K2R6oUvA2s2Y5j+4CtgjHbx3CVXRHnW2cjw33d8tiwUlEvEyMBHAQyvbAfXMBO4ovxdvK0f5cRcRZdAX7PDsMDN3OYsFRdKX7OLxnASOlbI9IKYInEXFSHjZxXL6seD+cgg09K6+tRUREWe0+johfEyMB7J2yPVJlk14bXfE+ii/F223bu32IrmC3CjYc1s5q9/P48n6leAODp2xPQCmO59GNmjyPiGbna8rl+yK6DyRtdAX7Y2oa4OZR8Jv4Uryb6Ip3E+7SAQOkbE9MuZCdla/4pnwfxbhPN/kQXbE+D+UaqnfL+9VRfL1YYM77C+9nUKm/fPr0KTsDlSkXtG+/hnRRu45SqCPiMiLOjYXA+JTTmJr48j415sWCn/l79glJ5XjHPzIzVOQX1x1uKNvcS1kBP4qIefk6iojn5c8Zt3avoivSH6Mr1pfxpVhb4YGJKgV8Hl0Jn+98jXkE5e22XZ9khyjXiTamPZ4YEfGuPNAJIkLZZk92ynhEV8KPvvmfzMvXz1yWr13tzp+VaeBRvnmfulkwuDGP+71H1eQyuhOT2twYX5Sf8SK6Ofup+RgedMYtlG0AAOjJX7MDAADAWCnbAADQE2UbAAB6knrOdnmk+CKGtylln24eCW7T30RMfAPRjcuobGMXAPQhbYPkrFkuIuLPlG9en4uIaBTu8XM01nd+s3MfgDFLGSMp56Aq2l+8jIj0M1I5iNNQtHedlg8gADBKWTPb86TvW7NFdgAOYsqjI7d5Ft+fyQ4Ao2GDZD1ezJqlIjZiZXRqSI+9BwCeKKtsm02+3SI7AL1aZAeo1GV2AADoS+YGSY+uvN3ft+36MjsE+1X2Kfxvdo4KXW/btZltAEYrc4zkQ+L3rpmNkuO0yg5QqfPsAADQp8yy7SJ7u4XTGcal/D5fZ+eoVJsdAAD6pGzX51lY3R4bv8+7eR8AYNQyy3ab+L1rd2J1exzK71HZvlubHQAA+pRWtssmwKus7185q9vjsQrH/d3lylNTARi77HO23UK+20k5wYKBKr+/37NzVKzNDgAAfcsu223y96/Zs3CCxdCdZgeoXJsdAAD6ll22z5K/f+1ez5plkx2Chyu/t1+zc1SuzQ4AAH1LLdvmtu9lkx2AhymbIjfZOSp35eFNAExB9sp2hNWtn3kxa5ar7BA8yCoiXmSHqJy7WgBMQg1l20X35/6YNcuj7BD8XBkfsSny59rsAABwCDWU7TY7wEBsnL1dN+Mj97dt1z5kAzAJ6WW7nLP7ITvHALwMp1vUbhPGR+7jfXYAADiU9LJdWOW6n9ezZrnIDsH3Zs3yJJw+cl9e7wBMhrI9PKfmt+tSfh//zs4xIF7vAExGFWW7HAF2kZ1jIJ5FRGt+uw7lKZFtcowhee8R7QBMSRVlu9hkBxgQhbsC5ed/Ft3vg/uxqg3ApNRUtl2EH+Zl+JmlKUW7je73wP35NwvApFRTto2SPMqrWbPcZIeYqNNQtB/KCAkAk1NN2S4cbfdwrxXuwyo/79fZOQbIqjYAk1Nb2XYxfhyF+0AU7Ue73rbrTXYIADi0qsp2ucX8LjvHQCncPZo1y+ezZtmGov1YPkgDMElVle1ikx1gwF7PmuW5U0r2a2cz5KvkKENmRAyASaqubG/bdRsRV8kxhuxldMcCzrODjEF5YM152Az5FBfbdn2eHQIAMlRXtgurYE/zMiLOZ82yyQ4yZLNmeRzdivaL5ChD5/UMwGTVWrY3EXGdHWLgnkXEf2fNcpUdZIjKz+0/4YE1T3Ud5rUBmLC/fPr0KTvDrZz6sFcfIuLYGcc/V8ZvzsLYyL683bbrk+wQAJCl1pXtiIhVdoAReRURl2UsgjvMmuVJmM/eNyMkAExatSvbERHlqDUnQOzX+4hYWOX+oqxmb8K/tX17t23Xi+wQAJCp5pXtCKvbffg1ulVut/bj82z2eSjafdhkBwCAbFWvbEdY3e7ZRUSclOMWJ2XWLBfRfZhz0kg/PmzbdZMdAgCy/S07wD1sQtnuy8voTiz5EBGrKZTuchziKvyb6tsqOwAA1KD6le2IiFmzvAwrkIcw2tJdNoeehJJ9CFa1AaAYwsp2RLdK9md2iAl4Fd1K90VEnG7b9SY5z5OUx6wvoivZPqwdzio7AADUYhAr2xFWt5NcRzfGsxnS47bLqMgiIo7DQ2kOzao2AOwYUtluIuK/2Tkm7Cq6h71UWbxnzfIovhRsH8ry/GOMY0gA8FiDKdsRTiapyFVEtDdf23Z9eegA5WzspnxZwa6DVW0A+MbQynYTVrdrdBXdWdXn0RXwy30W8FKs59EV66PyX+W6Pr/UeNcDADINqmxHRMya5Vl0D2ahfhcR8TEiLsvXjW//Pi9f3/79eXh0+lB4WiQA3GIop5HsOglleyhuirLRn3G7DieQAMCtan9c+3fKeMKb7BzAZ6cZc/sAMASDK9vFaXSraUCuq227XmWHAIBaDbJsb9v1x+iOeQNynWQHAICaDW6D5C5HAUKq99t2fZwdAgBqNsiV7R2LME4CGa7DqjYA/NSgy3bZlHWanQMmaGVTJAD83KDHSG7MmuV5OI8ZDsWTIgHgnga9sr1jkR0AJuI6vN4A4N5GUbbLI6KdvQ39Mz4CAA8wijGSG8ZJoFfGRwDggUaxsr3jOJxOAn0wPgIAjzCqsl1ubzuODPZvYXwEAB5uVGU7ImLbrjcR8S47B4zI2227PssOAQBDNLqyXZxExEV2CBiBi227drcIAB5plGV7264/hqdLwlNdR7cPAgB4pFGW7YjPxwFakYPHM6cNAE802rId8Xl++212DhigN+a0AeDpRnXO9l1mzbKNiFfZOWAg3m/btfERANiDUa9s7zgOGybhPi7CedoAsDeTWNmOiJg1y6OIaCPiWXIUqNV1RByZ0waA/ZnKyvbNhskmOwdU6joiGkUbAPZrMmU74nPh/i07B1RoUV4fAMAeTapsR3w+oUThhi9+c/IIAPRjcmU7wiPdYce/yusBAOjBZDZI3mbWLDcR8To7ByR5t23Xi+wQADBmk1zZvlGKhhVupkjRBoADmHTZjlC4mSRFGwAOZPJlO0LhZlIUbQA4IGW7ULiZAEUbAA5M2d6hcDNiijYAJFC2v6FwM0KKNgAkUbZvUYrJm+wcsAe/KdoAkGfS52z/zKxZLiLiz+wc8Ei/eWANAORStn9i1iyPI2ITEc+So8B9XUfE8bZdt8k5AGDylO17mDXLo4hoQ+GmflfRFe3z7CAAgLJ9b7Nm+Ty6wv0yOQrc5SIimm27/pgdBADoKNsPUAr3aUS8zs4C33DiCABUSNl+hFmzPImIf2fngOJf23Z9mh0CAPiesv1Is2bZRMRZmOMmz3V0YyPmswGgUs7ZfqRy0sM8Ij6kBmGqPkTEXNEGgLpZ2d6DWbNcRcQf2TmYjDfbdr3KDgEA/JyyvSdlrGQTES9ykzBijvUDgIExRrInZazkKCLe5yZhpN5FxJGiDQDDYmW7B546yR5dR8Ri267PsoMAAA9nZbsHpRjNwyo3T/M+uk2QijYADJSV7Z6VVe7TMMvN/V1Ft5rdJucAAJ7IynbPyqrkUUS8zc7CILyJbja7Tc4BAOyBle0DmjXLo+hWuV9lZ6E6H6Jbzb7MDgIA7I+ynWDWLBcRsQqjJXQjIyfmsgFgnJTtJLNm+TwiTsqXU0um5zoiTj2cBgDGTdlOVkr3KiJ+T47CYVxHN0p0um3XH7PDAAD9UrYrMWuW8+hK9+vcJPToXUSszGUDwHQo25VRukdJyQaAiVK2K1VK90lELMJM9xDdjItslGwAmC5lu3I7GykX4fSSIbiKiE2YyQYAQtkelHJk4CKc012jD9GtYm+ygwAA9VC2B6g8HOckIo7DiEmm64g4C/PYAMAdlO0BKyMmx2G1+9CsYgMA96Jsj0TZUHlTvF+mhhmni+hmsc+sYgMA96Vsj1AZMzkuX4r34ynYAMCTKNsjt7PifRxGTe7jfUS0oWADAHugbE9ImfFudr6sener121EtNt2fZacBQAYGWV7wiZavj9ExHl8KdjOwgYAeqNs85VZs2wi4mjna8gF/ENEXEZXrs+37brNDAMATI+yzU+VDZfz6Mr3fOfPNZzxfR1dmb6ML8X6ctuuzxMzAQBEhLLNE5UNmPOIeB5dAY9v/nxjHvd73PxVdKV5V7vz5/OI+Bhdof72fwcAUBVlGwAAevLX7AAAADBWyjYAAPRE2QYAgJ4o2wAA0BNlGwAAeqJsAwBAT5RtAADoibINAAA9UbYBAKAnyjYAAPRE2QYAgJ4o2wAA0BNlGwAAeqJsAwBAT5RtAADoibINAAA9UbYBAKAnyjYAAPRE2QYAgJ4o2wAA0BNlGwAAeqJsAwBAT5RtAADoibINAAA9UbYBAKAnyjYAAPRE2QYAgJ4o2wAA0BNlGwAAeqJsAwBAT5RtAADoibINAAA9UbYBAKAnyjYAAPRE2QYAgJ4o2wAA0JP/DzJGWgEO8mzsAAAAAElFTkSuQmCC" alt="GTF"></div>
+  <div class="titles">
+    <h1>Painel de Cargas — GTFOODS Terra Boa Abatedouro</h1>
+    <div class="sub">Romaneios de carregamento &middot; clique no status para atualizar &middot; clique na carga/pedido para ver os itens</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input type="text" id="busca" placeholder="Buscar viagem, transportadora, motorista ou cliente...">
+  <select id="filtroStatus">
+    <option value="">Todos os status</option>
+    <option value="1">Veículo chegou na planta</option>
+    <option value="2">Separado</option>
+    <option value="3">Carregado</option>
+    <option value="4">Faturado</option>
+  </select>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="admin-bar" style="margin-bottom:10px;">
+  <span id="adminState">Modo consulta (somente leitura)</span>
+  <button id="adminToggle">Entrar como admin</button>
+</div>
+
+<div class="sync-bar sync-off" id="syncBar">
+  <span class="dot-status"></span>
+  <span id="syncText">Conectando à atualização em tempo real...</span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const STAGES = ["Veículo chegou na planta","Separado","Carregado","Faturado"];
+
+const viagens = [
+{numero:"5000815",transportadora:"WDB TRANSPORTES LTDA",motorista:"WESLEI DIAS BORGES",data:"09/09/2026",hora:"17:00",entregas:6,totalCx:343.0,totalKg:5476.0,pedidos:[
+ {codigo:"005865",cliente:"GCA - DISTRIBUIDORA COMERCIAL DE ALIMENTOS LTDA",cidade:"COLORADO/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO TRADICIONAL CONGELADA PACOTE 1 KG CX PP 10 KG PROD CANCAO",4.0,40.0]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"PRIMEIRO DE MAIO/PR",itens:[
+   ["COMPRO000008","FILEZINHO DE FRANGO EMPANADO CONG PCT 700 G CX PP 7 KG",1.0,7.0],
+   ["COMPRO000067","BATATA PALITO CONGELADA 9X9MM PACOTE 2KG CX PP 10KG (CANCAO ALIMENTOS)",6.0,60.0],
+   ["COMPRO000068","BATATA PALITO CONGELADA 9X9MM PACOTE 400G CX PP 10KG (CANCAO ALIMENTOS)",1.0,10.0],
+   ["FRASCANMI000011","CARNE CONGELADA DE FRANGO (MEIO DA ASA PACOTE IQF) CX PP 10KG",1.0,10.0],
+   ["FRASCANMI000029","CARNE CONGELADA DE FRANGO COXINHA DA ASA PV CX 20KG",10.0,200.0],
+   ["FRCSCANMI000018","CARNE RESFRIADA DE FRANGO (COXA E SOBRECOXA INDIVIDUAL) CX PP 18KG (CANCAO)",22.0,396.0],
+   ["FRINCANMI000002","FRANGO RESFRIADO C/ MIUDOS (2 FIGADO 2 PESCOCO) CX PP 20KG (CANCAO)",5.0,100.0],
+   ["FRPTCANMI000045","CARNE RESFRIADA DE FRANGO (FILE DE PEITO INDIVIDUAL) CX PP 20KG (CANCAO ALIMENTOS)",7.0,140.0],
+   ["PEFLCANMI000002","FILE DE TILAPIA CONGELADA IQF 400G CX PP 10,4KG",1.0,10.4]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"SERTANOPOLIS/PR",itens:[
+   ["COMPRO000008","FILEZINHO DE FRANGO EMPANADO CONG PCT 700 G CX PP 7 KG",1.0,7.0],
+   ["COMPRO000067","BATATA PALITO CONGELADA 9X9MM 2KG",6.0,60.0],
+   ["FRASCANMI000029","COXINHA DA ASA PV CX20KG",15.0,300.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",22.0,396.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",7.0,140.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI IQF PCT10X1 CX10KG",3.0,30.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE S/SASSAMI",1.0,10.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",5.0,100.0]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"SERTANOPOLIS/PR",itens:[
+   ["COMPRO000008","FILEZINHO DE FRANGO EMPANADO 700G",1.0,7.0],
+   ["COMPRO000067","BATATA PALITO 2KG",20.0,200.0],
+   ["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["COMPRO000081","PAO DE QUEIJO TRADICIONAL 300G CX9,6KG",1.0,9.6],
+   ["FRASCANMI000010","COXINHA DA ASA IQF PCT10X1 CX10KG",6.0,60.0],
+   ["FRASCANMI000011","MEIO DA ASA IQF",2.0,20.0],
+   ["FRASCANMI000029","COXINHA DA ASA PV",10.0,200.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",28.0,504.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",5.0,50.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",8.0,160.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI IQF",3.0,30.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE S/SASSAMI",2.0,20.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",7.0,140.0],
+   ["PEFLCANMI000013","PEIXE TEMPERADO EMPANADO (ISCAS DE TILAPIA) PCT400G CX3,2KG",1.0,3.2]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"BELA VISTA DO PARAISO/PR",itens:[
+   ["COMPRO000008","FILEZINHO DE FRANGO EMPANADO 700G",1.0,7.0],
+   ["COMPRO000065","EMPANADO DE FRANGO CONG(CHICKEN) 300G",2.0,6.0],
+   ["COMPRO000067","BATATA PALITO 2KG",12.0,120.0],
+   ["COMPRO000081","PAO DE QUEIJO 300G",1.0,9.6],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",5.0,50.0],
+   ["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRASCANMI000029","COXINHA DA ASA PV",7.0,140.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",22.0,396.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",5.0,100.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE S/SASSAMI",2.0,20.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",7.0,140.0],
+   ["PEFLCANMI000002","FILE DE TILAPIA IQF 400G",2.0,20.8]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"PRIMEIRO DE MAIO/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO TRADICIONAL",1.0,10.0],
+   ["COMPRO000067","BATATA PALITO 2KG",10.0,100.0],
+   ["COMPRO000081","PAO DE QUEIJO 300G",1.0,9.6],
+   ["COMPRO000098","BATATA NOISETTE CONG PCT400G CX10KG",1.0,10.0],
+   ["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRASCANMI000029","COXINHA DA ASA PV",10.0,200.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",22.0,396.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",5.0,100.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI IQF",3.0,30.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",7.0,140.0],
+   ["PEFLCANMI000002","FILE DE TILAPIA IQF 400G",2.0,20.8]]}
+]},
+
+{numero:"5000819",transportadora:"R C - LOGISTICA LTDA",motorista:"RAFAEL BRUNO COMO",data:"09/09/2026",hora:"17:02",entregas:26,totalCx:299.0,totalKg:4194.6,pedidos:[
+ {codigo:"004289",cliente:"DIEGO ROMAGNOLI ROMEIRO & CIA LTDA",cidade:"RONCADOR/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",1.0,10.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["COMPRO000094","LASANHA A BOLONHESA CONG BDJ600G CX7,2KG",1.0,7.2],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",4.0,40.0]]},
+ {codigo:"012174",cliente:"REGINA ANGELA GONZALEZ PAVAM SUPERMERCADO",cidade:"BARBOSA FERRAZ/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",25.0,250.0],["FRASCANMI000011","MEIO DA ASA IQF",5.0,50.0],
+   ["FRPTCANMI000033","FILE DE PEITO PV CX20KG",10.0,200.0]]},
+ {codigo:"013996",cliente:"SUPERMERCADO CRIOLO LTDA",cidade:"BARBOSA FERRAZ/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",20.0,200.0],["FRPTCANMI000021","FILE DE PEITO S/PELE S/SASSAMI",20.0,200.0]]},
+ {codigo:"014858",cliente:"TEIXEIRA & TEIXEIRA SUPERMERCADO LTDA",cidade:"RONCADOR/PR",itens:[
+   ["FRASCANMI000029","COXINHA DA ASA PV",2.0,40.0],["FRCSCANMI000003","COXA E SOBRECOXA PV CX18KG",5.0,90.0],
+   ["FRPTCANMI000033","FILE DE PEITO PV",5.0,100.0]]},
+ {codigo:"047824",cliente:"LUIZ APARECIDO DUARTE",cidade:"FENIX/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRMDCANMI000016","MIUDOS CONG FIGADO PCT20X1 CX20KG",1.0,20.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0],["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0]]},
+ {codigo:"047838",cliente:"D J DE SOUZA SUPERMERCADO",cidade:"BARBOSA FERRAZ/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",10.0,100.0],["FRASCANMI000011","MEIO DA ASA IQF",6.0,60.0]]},
+ {codigo:"048265",cliente:"SANDRO MORETTE DE ALMEIDA",cidade:"BARBOSA FERRAZ/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",2.0,20.0]]},
+ {codigo:"058751",cliente:"COMERCIAL DE SECOS E MOLHADOS REGINA LTDA",cidade:"PITANGA/PR",itens:[
+   ["COMPRO000064","FILEZINHO EMPANADO PCT1KG CX7KG",1.0,7.0],["FRASCANMI000011","MEIO DA ASA IQF",5.0,50.0]]},
+ {codigo:"058754",cliente:"E VILKAS & VILKAS LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",5.0,50.0],["FRCSCANMI000003","COXA E SOBRECOXA PV",10.0,180.0],
+   ["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV CX18KG",25.0,450.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",5.0,50.0],["FRINCANMI000002","FRANGO C/ MIUDOS",5.0,100.0],
+   ["FRPTCANMI000004","PEITO C/OSSO PV CX18KG",6.0,108.0],["FRPTCANMI000010","FILEZINHO SASSAMI",5.0,50.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",5.0,50.0],["FRPTCANMI000033","FILE DE PEITO PV",10.0,200.0]]},
+ {codigo:"058755",cliente:"JOSE GOMES PADILHA & CIA LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",8.0,80.0],["FRASCANMI000027","COXINHA DA ASA PV RESFRIADA CX20KG",5.0,100.0],
+   ["FRMDCANMI000015","MIUDOS CONG (CORACAO) PCT20X1 CX20KG",2.0,40.0]]},
+ {codigo:"064872",cliente:"ROGER KASPRZAK E CIA LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",3.0,54.0]]},
+ {codigo:"064873",cliente:"PAULUK & SCHAVAREN LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",5.0,90.0],["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0]]},
+ {codigo:"064886",cliente:"VANIA CROZETTA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",6.0,108.0],["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",6.0,108.0],
+   ["FRPTCANMI000033","FILE DE PEITO PV",4.0,80.0]]},
+ {codigo:"064889",cliente:"RESTAURANTE FINO SABOR LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",2.0,36.0],["FRPTCANMI000033","FILE DE PEITO PV",2.0,40.0]]},
+ {codigo:"064969",cliente:"ORLEI PADILHA & CIA LTDA",cidade:"PITANGA/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",2.0,40.0],["FRPTCANMI000004","PEITO C/OSSO PV",1.0,18.0],
+   ["FRSACANMI000001","SAMBIQUIRA PCT18X1 CX18KG",1.0,18.0]]},
+ {codigo:"065028",cliente:"ROMERITO STACHIU & CIA LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",2.0,36.0],["FRINCANMI000002","FRANGO C/ MIUDOS",2.0,40.0]]},
+ {codigo:"069229",cliente:"ZELI COSTA RAK KOSSOUSKI",cidade:"IRETAMA/PR",itens:[
+   ["FRMDCANMI000015","MIUDOS CORACAO PCT20X1",2.0,40.0],["FRCSCANMI000003","COXA E SOBRECOXA PV",1.0,18.0]]},
+ {codigo:"069374",cliente:"J.A. RUFINO GARCIA & CIA LTDA",cidade:"BARBOSA FERRAZ/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",2.0,36.0],["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0]]},
+ {codigo:"069915",cliente:"N. G. MARTINS & CIA LTDA",cidade:"IRETAMA/PR",itens:[
+   ["FRPTCANMI000033","FILE DE PEITO PV",2.0,40.0]]},
+ {codigo:"070479",cliente:"J. E. CAPACI & CIA LTDA",cidade:"IRETAMA/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",3.0,30.0],["FRASCANMI000011","MEIO DA ASA IQF",2.0,20.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",3.0,30.0],["FRINCANMI000002","FRANGO C/ MIUDOS",1.0,20.0],
+   ["FRPTCANMI000004","PEITO C/OSSO PV",3.0,54.0],["FRPTCANMI000010","FILEZINHO SASSAMI",3.0,30.0]]},
+ {codigo:"072635",cliente:"MINIMERCADO IJJ LTDA",cidade:"PITANGA/PR",itens:[
+   ["COMPRO000064","FILEZINHO EMPANADO 1KG",1.0,7.0],
+   ["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV CX10,2KG",2.0,20.4]]},
+ {codigo:"074510",cliente:"DIRCEU MORAES",cidade:"PITANGA/PR",itens:[
+   ["COMPRO000101","EMPANADO DE TILAPIA (SMALL FISH) CONG PCT400G CX3,2KG",3.0,9.6],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0],["FRSACANMI000001","SAMBIQUIRA",1.0,18.0],
+   ["PEFLCANMI000002","FILE DE TILAPIA IQF400G",1.0,10.4]]},
+ {codigo:"074624",cliente:"EDITH HORST",cidade:"PITANGA/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",1.0,10.0]]},
+ {codigo:"074640",cliente:"ELIEZER S PEDROZO LTDA",cidade:"LUIZIANA/PR",itens:[
+   ["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],["FRASCANMI000027","COXINHA DA ASA PV RESFRIADA",1.0,20.0],
+   ["FRCSCANMI000053","S/OSSO C/PELE FILE COXA/SOBRECOXA PCT20X1 CX20KG",1.0,20.0]]},
+ {codigo:"074647",cliente:"ARCO IRIS PANIFICADORA LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",1.0,18.0]]},
+ {codigo:"074715",cliente:"DW KRIIGUER LTDA",cidade:"PITANGA/PR",itens:[
+   ["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",2.0,36.0],
+   ["FRPTCANMI000052","FILEZINHO SASSAMI S/OSSO PCT10KG CX PP20KG (CANCAO)",1.0,20.0]]}
+]},
+
+{numero:"5000822",transportadora:"GONCALVES & TORTOLA S/A",motorista:"SERGIO ANDRE CAMPOS SANTANA",data:"09/09/2026",hora:"17:03",entregas:22,totalCx:405.0,totalKg:4353.5,pedidos:[
+ {codigo:"001285",cliente:"ASILO LINS DE VASCONCELOS",cidade:"PARANAVAI/PR",itens:[["FRCSCANMI000003","COXA E SOBRECOXA PV",3.0,54.0]]},
+ {codigo:"004078",cliente:"13.703.542 DAIANE RAMOS SILVA",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000064","FILEZINHO EMPANADO 1KG",1.0,7.0],["COMPRO000082","PAO DE QUEIJO 800G CX9,6KG",1.0,9.6],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",2.0,20.0],["FRMDCANMI000022","MIUDOS MOELA PCT20X1 CX20KG",1.0,20.0]]},
+ {codigo:"004092",cliente:"DALLMANN SECOS E MOLHADOS LTDA",cidade:"PARANAVAI/PR",itens:[["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6]]},
+ {codigo:"005865",cliente:"GCA DISTRIBUIDORA COMERCIAL DE ALIMENTOS LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000066","EMPANADO(CHICKEN) PCT1KG CX7KG",10.0,70.0],["COMPRO000098","BATATA NOISETTE",1.0,10.0]]},
+ {codigo:"011512",cliente:"PEDRO PAULO DA SILVA ME",cidade:"PARANAVAI/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",5.0,90.0],["FRPTCANMI000033","FILE DE PEITO PV",5.0,100.0]]},
+ {codigo:"013016",cliente:"S R FLAUZINO",cidade:"PRESIDENTE CASTELO BRANCO/PR",itens:[
+   ["COMPRO000069","BATATA PALITO 1,1KG CX9,9KG",1.0,9.9],["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6]]},
+ {codigo:"014130",cliente:"SUPERMERCADO GUGUY LTDA",cidade:"PARANAVAI/PR",itens:[["COMPRO000069","BATATA PALITO 1,1KG",3.0,29.7]]},
+ {codigo:"014130",cliente:"SUPERMERCADO GUGUY LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6],["COMPRO000094","LASANHA BOLONHESA",2.0,14.4],
+   ["COMPRO000095","LASANHA QUATRO QUEIJOS",1.0,7.2],["COMPRO000096","LASANHA DE FRANGO",2.0,14.4],
+   ["COMPRO000099","EMPANADO(FUT CHICKEN)300G CX3KG",1.0,3.0],
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV CX10,5KG",3.0,31.5],
+   ["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV CX10,2KG",2.0,20.4],
+   ["FRCSCANMI000009","COXA PACOTE IQF CX PP10KG",2.0,20.0],["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV CX13KG",2.0,26.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",43.0,430.0],["FRPTCANMI000010","FILEZINHO SASSAMI",3.0,30.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",2.0,20.0],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV CX11,2KG",4.0,44.8],
+   ["FRPTCANMI000069","S/OSSO S/PELE FILE PEITO BIFES IQF PCT10X1",1.0,10.0],
+   ["PEFLCANMI000012","PEIXE TEMPERADO EMPANADO(FILE TILAPIA) PCT600G CX6KG",1.0,6.0]]},
+ {codigo:"014130",cliente:"SUPERMERCADO GUGUY LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO",1.0,10.0],["COMPRO000065","EMPANADO(CHICKEN)300G",1.0,3.0],
+   ["COMPRO000068","BATATA PALITO 400G",1.0,10.0],["COMPRO000069","BATATA PALITO 1,1KG",3.0,29.7],
+   ["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6],["COMPRO000094","LASANHA BOLONHESA",3.0,21.6],
+   ["COMPRO000096","LASANHA DE FRANGO",2.0,14.4],["FRASCANMI000010","COXINHA DA ASA IQF",4.0,40.0],
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ",1.0,10.2],
+   ["FRCSCANMI000009","COXA IQF",1.0,10.0],["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ",1.0,13.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",10.0,100.0],["FRPTCANMI000010","FILEZINHO SASSAMI",5.0,50.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ",1.0,11.2]]},
+ {codigo:"014130",cliente:"SUPERMERCADO GUGUY LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000094","LASANHA BOLONHESA",1.0,7.2],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",2.0,20.0],["FRCSCANMI000009","COXA IQF",1.0,10.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",16.0,160.0],["FRPTCANMI000010","FILEZINHO SASSAMI",10.0,100.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",2.0,20.0],["FRPTCANMI000069","FILE PEITO BIFES IQF",1.0,10.0]]},
+ {codigo:"014130",cliente:"SUPERMERCADO GUGUY LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000059","POLENTA PALITO",1.0,10.0],
+   ["COMPRO000065","EMPANADO 300G",2.0,6.0],["COMPRO000069","BATATA PALITO 1,1KG",3.0,29.7],
+   ["COMPRO000082","PAO DE QUEIJO 800G",3.0,28.8],["COMPRO000094","LASANHA BOLONHESA",2.0,14.4],
+   ["COMPRO000095","LASANHA QUATRO QUEIJOS",1.0,7.2],["COMPRO000096","LASANHA DE FRANGO",1.0,7.2],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",16.0,160.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ",1.0,10.2],
+   ["FRCSCANMI000009","COXA IQF",1.0,10.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",45.0,450.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",11.0,110.0],["FRPTCANMI000021","FILE DE PEITO S/PELE",2.0,20.0]]},
+ {codigo:"014130",cliente:"SUPERMERCADO GUGUY LTDA",cidade:"ALTO PARANA/PR",itens:[
+   ["COMPRO000081","PAO DE QUEIJO 300G CX9,6KG",1.0,9.6],["FRASCANMI000010","COXINHA DA ASA IQF",8.0,80.0],
+   ["FRCSCANMI000009","COXA IQF",2.0,20.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",15.0,150.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",2.0,20.0],["FRPTCANMI000069","FILE PEITO BIFES IQF",1.0,10.0]]},
+ {codigo:"034372",cliente:"GUEDES CARNES LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",35.0,630.0],["FRPTCANMI000033","FILE DE PEITO PV",2.0,40.0]]},
+ {codigo:"040539",cliente:"MERCADO SANTO DIA LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0],["PEFLCANMI000002","FILE DE TILAPIA IQF",1.0,10.4]]},
+ {codigo:"047897",cliente:"DOS ANJOS & RODRIGUES LTDA",cidade:"ALTO PARANA/PR",itens:[["FRPTCANMI000004","PEITO C/OSSO PV",1.0,18.0]]},
+ {codigo:"057687",cliente:"V.R. VIANA MERCADO",cidade:"PARANAVAI/PR",itens:[
+   ["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0]]},
+ {codigo:"057747",cliente:"MERCADO MIX LTDA",cidade:"PARANAVAI/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"057788",cliente:"MERCEARIA PRECO BOM LTDA",cidade:"PARANAVAI/PR",itens:[["FRCSCANMI000009","COXA IQF",1.0,10.0]]},
+ {codigo:"057789",cliente:"52.822.278 ERCIO FEUSER",cidade:"PARANAVAI/PR",itens:[["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"065397",cliente:"CRISTIANE DE OLIVEIRA SILVA DOS SANTOS LTDA",cidade:"PARANAVAI/PR",itens:[["COMPRO000067","BATATA PALITO 2KG",2.0,20.0]]},
+ {codigo:"066172",cliente:"D R DOS SANTOS LANCHES LTDA",cidade:"PARANAVAI/PR",itens:[["COMPRO000067","BATATA PALITO 2KG",3.0,30.0]]},
+ {codigo:"074168",cliente:"A C B GNOATTO HOTEL LTDA",cidade:"PARANAVAI/PR",itens:[["COMPRO000068","BATATA PALITO 400G",1.0,10.0]]}
+]},
+
+{numero:"5000568",transportadora:"GONCALVES & TORTOLA S/A",motorista:"PAULO SERGIO MOREIRA LOPES",data:"08/09/2026",hora:"18:07",entregas:12,totalCx:326.0,totalKg:4764.0,pedidos:[
+ {codigo:"006591",cliente:"IRMAOS MUFFATO & CIA LTDA",cidade:"ROLANDIA/PR",itens:[["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",55.0,990.0]]},
+ {codigo:"006591",cliente:"IRMAOS MUFFATO & CIA LTDA",cidade:"LONDRINA/PR",itens:[["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",55.0,990.0]]},
+ {codigo:"008308",cliente:"LUIZ H P BRITO & CIA LTDA",cidade:"ROLANDIA/PR",itens:[["FRASCANMI000027","COXINHA DA ASA PV RESFRIADA",3.0,60.0]]},
+ {codigo:"011652",cliente:"PLANOS SUPERMERCADO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",10.0,180.0],
+   ["FRCSCANMI000053","S/OSSO C/PELE FILE COXA/SOBRECOXA",3.0,60.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",10.0,200.0]]},
+ {codigo:"011652",cliente:"PLANOS SUPERMERCADO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["FRCSCANMI000053","S/OSSO C/PELE FILE COXA/SOBRECOXA",2.0,40.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",5.0,100.0]]},
+ {codigo:"012512",cliente:"RESTAURANTE TAI WAN LTDA",cidade:"LONDRINA/PR",obs:"DAS 8:30 ÀS 15 HRS",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",4.0,72.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",4.0,80.0]]},
+ {codigo:"013721",cliente:"SUPER COMPRA DISTRIBUIDORA DE ALIMENTOS LTDA",cidade:"ROLANDIA/PR",obs:"DESCARGA AGENDADA NA PARTE DA MANHA 09/09",itens:[
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",150.0,1500.0]]},
+ {codigo:"013970",cliente:"SUPERMERCADO CENTAURO LTDA",cidade:"ARAPONGAS/PR",itens:[
+   ["FRASCANMI000027","COXINHA DA ASA PV",2.0,40.0],["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",2.0,36.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",2.0,40.0]]},
+ {codigo:"026309",cliente:"ZACHEO RESTAURANTE LTDA",cidade:"IBIPORA/PR",obs:"DAS 7 ÀS 14 HRS",itens:[["FRPTCANMI000033","FILE DE PEITO PV",3.0,60.0]]},
+ {codigo:"035889",cliente:"COXINHAS DO CHEF - INDUSTRIA DE MASSAS LTDA",cidade:"JATAIZINHO/PR",obs:"ALMOCO DAS 11:30 ÀS 13:30 HRS",itens:[
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",10.0,200.0]]},
+ {codigo:"062912",cliente:"OSEIAS MOREIRA PANTANO LANCHES",cidade:"LONDRINA/PR",itens:[["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",2.0,40.0]]},
+ {codigo:"069300",cliente:"CASA DE CARNE M GALDINO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",2.0,36.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",2.0,40.0]]}
+]},
+
+{numero:"5000569",transportadora:"GONCALVES & TORTOLA S/A",motorista:"JOSE GERMANO SOARES",data:"08/09/2026",hora:"18:10",entregas:21,totalCx:379.0,totalKg:6500.3,pedidos:[
+ {codigo:"000490",cliente:"NATANIEL DA SILVA PIRES SUPERMERCADO",cidade:"FAXINAL/PR",itens:[["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",10.0,180.0]]},
+ {codigo:"006591",cliente:"IRMAOS MUFFATO & CIA LTDA",cidade:"APUCARANA/PR",itens:[["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",83.0,1494.0]]},
+ {codigo:"007732",cliente:"L P DE OLIVEIRA SUPERMERCADO",cidade:"FAXINAL/PR",itens:[
+   ["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],["FRCSCANMI000003","COXA E SOBRECOXA PV",1.0,18.0]]},
+ {codigo:"010452",cliente:"MOLICENTER SUPERMERCADO LTDA",cidade:"APUCARANA/PR",itens:[
+   ["COMPRO000099","EMPANADO(FUT CHICKEN)300G",2.0,6.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",5.0,50.0],
+   ["FRPTCANMI000069","FILE PEITO BIFES IQF",2.0,20.0]]},
+ {codigo:"010758",cliente:"NILDO VITORINO PIRES",cidade:"FAXINAL/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000066","EMPANADO(CHICKEN)1KG",1.0,7.0]]},
+ {codigo:"013449",cliente:"SILVANA PIRES DA CRUZ - MERCADO",cidade:"FAXINAL/PR",itens:[["FRCSCANMI000021","COXA E SOBRECOXA C/PORCAO DORSAL PV",10.0,180.0]]},
+ {codigo:"013811",cliente:"SUPERALVO SUPERMERCADO LTDA",cidade:"APUCARANA/PR",itens:[
+   ["FRASCANMI000029","COXINHA DA ASA PV",20.0,400.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",5.0,51.0]]},
+ {codigo:"013811",cliente:"SUPERALVO SUPERMERCADO LTDA",cidade:"APUCARANA/PR",itens:[
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",30.0,540.0],["FRPTCANMI000033","FILE DE PEITO PV",20.0,400.0]]},
+ {codigo:"013811",cliente:"SUPERALVO SUPERMERCADO LTDA",cidade:"APUCARANA/PR",itens:[
+   ["FRASCANMI000029","COXINHA DA ASA PV",15.0,300.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ",5.0,51.0],
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",20.0,360.0],["FRPTCANMI000033","FILE DE PEITO PV",15.0,300.0]]},
+ {codigo:"013811",cliente:"SUPERALVO SUPERMERCADO LTDA",cidade:"APUCARANA/PR",itens:[
+   ["FRASCANMI000029","COXINHA DA ASA PV",15.0,300.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ",5.0,51.0],
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",20.0,360.0],["FRPTCANMI000033","FILE DE PEITO PV",15.0,300.0]]},
+ {codigo:"013850",cliente:"SUPERMERCADO ALIANCA LTDA",cidade:"APUCARANA/PR",itens:[["FRPTCANMI000069","FILE PEITO BIFES IQF",2.0,20.0]]},
+ {codigo:"017659",cliente:"R.MARIA DE SOUZA NEVES - MERCADO",cidade:"MARILANDIA DO SUL/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6],
+   ["COMPRO000100","EMPANADO(FUT CHICKEN)1KG CX7KG",1.0,7.0],["COMPRO000101","EMPANADO TILAPIA 400G",1.0,3.2],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",2.0,20.0],["FRASCANMI000011","MEIO DA ASA IQF",2.0,20.0],
+   ["FRCSCANMI000011","SOBRECOXA IQF PCT10X1 CX10KG",1.0,10.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0],
+   ["FRPTCANMI000069","FILE PEITO BIFES IQF",1.0,10.0]]},
+ {codigo:"065259",cliente:"TANIA MARA LORIN CILENTI",cidade:"APUCARANA/PR",obs:"PRIORIZAR",itens:[["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",10.0,200.0]]},
+ {codigo:"065509",cliente:"JMJ MENDES CARNES LTDA",cidade:"CALIFORNIA/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO",1.0,10.0],["FRCSCANMI000003","COXA E SOBRECOXA PV",25.0,450.0]]},
+ {codigo:"065757",cliente:"J C PEREIRA - MINIMERCADO",cidade:"FAXINAL/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRCSCANMI000003","COXA E SOBRECOXA PV",2.0,36.0]]},
+ {codigo:"065773",cliente:"PIVA & BASSO LTDA",cidade:"FAXINAL/PR",itens:[["FRCSCANMI000003","COXA E SOBRECOXA PV",2.0,36.0]]},
+ {codigo:"065775",cliente:"HILBERATH COMERCIO DE GENEROS ALIMENTICIOS LTDA",cidade:"BORRAZOPOLIS/PR",itens:[["FRPTCANMI000021","FILE DE PEITO S/PELE",3.0,30.0]]},
+ {codigo:"068937",cliente:"SILVA E SILVA PIZZARIA FORNETTO LTDA",cidade:"FAXINAL/PR",itens:[["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",2.0,40.0]]},
+ {codigo:"073279",cliente:"MARAFIGO E PEGO LTDA",cidade:"MAUA DA SERRA/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",1.0,10.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9]]},
+ {codigo:"073287",cliente:"CLOVIS MARTINS DOS SANTOS",cidade:"MAUA DA SERRA/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"073680",cliente:"SUPERMERCADO ROYAL LTDA",cidade:"MARILANDIA DO SUL/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",5.0,50.0],["COMPRO000069","BATATA PALITO 1,1KG",3.0,29.7]]},
+ {codigo:"075015",cliente:"ADRIANA ROSSI BENEDITO TAVARES",cidade:"RIO BOM/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]}
+]},
+
+{numero:"5000733",transportadora:"GONCALVES & TORTOLA S/A",motorista:"DIEGO OLIVEIRA DE MORAES",data:"09/09/2026",hora:"14:40",entregas:22,totalCx:389.0,totalKg:6096.6,pedidos:[
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"SARANDI/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",2.0,22.8],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",2.0,22.4]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"SARANDI/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",2.0,21.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",5.0,57.0],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",3.0,33.6]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"SARANDI/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",2.0,22.4]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",2.0,22.8],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",3.0,33.6]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",3.0,34.2]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",1.0,10.2],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",1.0,11.2]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",2.0,21.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",2.0,26.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",3.0,33.6]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",1.0,10.2],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",1.0,11.2]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"SARANDI/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",1.0,10.2],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",2.0,22.4]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",2.0,26.0],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",3.0,33.6]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"SARANDI/PR",obs:"ATENÇÃO MOTORISTA: CLIENTE TEM AGENDAMENTO — LIGAR (44) 9179-9136 (TAIS) SOLICITANDO AGENDA",itens:[
+   ["FRPTCANMI000033","FILE DE PEITO PV CX20KG",200.0,4000.0]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"JANDAIA DO SUL/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",1.0,10.2],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",2.0,22.4]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",3.0,30.6],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",1.0,11.4],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",3.0,33.6]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGÁ/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",2.0,21.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",3.0,30.6],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",2.0,26.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",5.0,57.0],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",10.0,112.0]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"FLORESTA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",2.0,21.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",3.0,34.2],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",5.0,56.0]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"SARANDI/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",3.0,34.2]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",2.0,21.0],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",3.0,30.6],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",5.0,57.0],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",5.0,56.0]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",3.0,31.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",2.0,20.4],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",3.0,34.2],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",5.0,56.0]]},
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"JANDAIA DO SUL/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ PV",1.0,10.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ PV",1.0,10.2],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",1.0,13.0],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ PV",2.0,22.8],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ PV",3.0,33.6]]}
+]},
+
+{numero:"5000734",transportadora:"CARDOZO TRANSPORTES LTDA",motorista:"LUIZ CLAUDIO CARDOZO",data:"09/09/2026",hora:"14:41",entregas:1,totalCx:155.0,totalKg:3100.0,pedidos:[
+ {codigo:"003774",cliente:"COMPANHIA SULAMERICANA DE DISTRIBUICAO",cidade:"PAICANDU/PR",obs:"COLOCAR TERMÓGRAFO NO VEÍCULO — DAR PRIORIDADE, CLIENTE COM AGENDAMENTO PARA AS 05:00 DA MANHÃ",itens:[
+   ["FRASCANMI000037","CARNE RESFRIADA DE FRANGO ASA PV CX20KG",40.0,800.0],
+   ["FRINCANMI000002","FRANGO RESFRIADO C/ MIUDOS",40.0,800.0],
+   ["FRMDCANMI000008","MIUDOS RESFRIADOS MOELA PCT20X1 CX20KG",40.0,800.0],
+   ["FRMDCANMI000020","MIUDOS RESFRIADOS CORACAO PCT20X1 CX20KG",35.0,700.0]]}
+]},
+
+{numero:"5000735",transportadora:"GONCALVES & TORTOLA S/A",motorista:"JULIO FELIX DA SILVA",data:"09/09/2026",hora:"15:05",entregas:23,totalCx:152.0,totalKg:1993.7,pedidos:[
+ {codigo:"001989",cliente:"BRASEIRO COMERCIO DE GENEROS ALIMENTICIOS LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",8.0,144.0],["FRMDCANMI000020","MIUDOS CORACAO",3.0,60.0]]},
+ {codigo:"005215",cliente:"F K COMERCIO DE ALIMENTOS E PARTICIPACOES LTDA",cidade:"MARINGA/PR",obs:"ENTREGAR ATÉ 15:30 — CLIENTE NÃO DESCARREGA HORÁRIO DE ALMOÇO",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],
+   ["COMPRO000119","BOLINHO DE FRANGO FUT CHICKEN C/RECHEIO CREMOSO DE QUEIJO CONG PTC300G CX4,2KG",1.0,4.2],
+   ["FRCSCANMI000011","SOBRECOXA IQF",1.0,10.0],["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0],
+   ["FRPTCANMI000033","FILE DE PEITO PV",5.0,100.0]]},
+ {codigo:"007828",cliente:"RESTAURANTE SHIRMAR LTDA",cidade:"MARINGA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",3.0,60.0]]},
+ {codigo:"008383",cliente:"M.J. CORREIA DA SILVA & SILVA LTDA",cidade:"MARINGA/PR",obs:"ENTREGAR ATÉ 10:30 DA MANHÃ",itens:[
+   ["FRMDCANMI000022","MIUDOS MOELA",1.0,20.0],["FRPTCANMI000010","FILEZINHO SASSAMI",4.0,40.0]]},
+ {codigo:"013473",cliente:"SIMAO & CAMPANA LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",10.0,100.0],["FRPTCANMI000033","FILE DE PEITO PV",10.0,200.0]]},
+ {codigo:"025731",cliente:"G.S.A. ATACAREJO LTDA.",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",8.0,80.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9]]},
+ {codigo:"035793",cliente:"SILVA & JANUARIO GENEROS ALIMENTICIOS LTDA",cidade:"MANDAGUACU/PR",itens:[
+   ["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0],["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0]]},
+ {codigo:"036022",cliente:"CAMILA GUERRA DE OLIVEIRA LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["COMPRO000081","PAO DE QUEIJO 300G",1.0,9.6],["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0]]},
+ {codigo:"036061",cliente:"JONATAN SCREMIN COMERCIO E DISTRIBUICAO DE FRIOS",cidade:"MARINGA/PR",obs:"ENDEREÇO: AV. COLOMBO 6220, MARINGÁ — IMPÉRIO DOS FRIOS",itens:[
+   ["COMPRO000066","EMPANADO(CHICKEN)1KG",5.0,35.0]]},
+ {codigo:"037285",cliente:"FANTIM & ORIENTE LTDA",cidade:"MARIALVA/PR",itens:[["FRPTCANMI000062","S/OSSO FILE PEITO BDJ",6.0,67.2]]},
+ {codigo:"037913",cliente:"SABOR DA QUERENCIA BUFFET LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO",2.0,20.0],["COMPRO000067","BATATA PALITO 2KG",2.0,20.0],
+   ["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],["FRCSCANMI000003","COXA E SOBRECOXA PV",11.0,198.0]]},
+ {codigo:"041545",cliente:"QUALITTA FOOD SERVICE LTDA",cidade:"MARINGA/PR",itens:[["FRASCANMI000029","COXINHA DA ASA PV",4.0,80.0]]},
+ {codigo:"044150",cliente:"TIAGO CSUCSULY-ME",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000066","EMPANADO 1KG",3.0,21.0],["FRCSCANMI000053","S/OSSO C/PELE FILE COXA/SOBRECOXA",1.0,20.0]]},
+ {codigo:"054792",cliente:"PENIANI COMERCIO DE ALIMENTOS LTDA",cidade:"MARINGA/PR",obs:"RECEBIMENTO 7:30-11:30 E 14:00-16:00",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",3.0,54.0]]},
+ {codigo:"055246",cliente:"MC COMERCIO LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000094","LASANHA BOLONHESA",3.0,21.6],["COMPRO000095","LASANHA QUATRO QUEIJOS",1.0,7.2],
+   ["COMPRO000096","LASANHA DE FRANGO",1.0,7.2],["FRMDCANMI000030","PESCOCO S/PELE C/OSSO PCT18X1 CX18KG",1.0,18.0]]},
+ {codigo:"057375",cliente:"BRUSTOLIM E RODRIGUES LTDA",cidade:"MARINGA/PR",obs:"ENTREGAR DE MANHÃ ANTES DAS 10H",itens:[
+   ["COMPRO000064","FILEZINHO EMPANADO 1KG",10.0,70.0]]},
+ {codigo:"060564",cliente:"KRT PIZZARIA LTDA",cidade:"MARINGA/PR",obs:"NOVO ENDEREÇO (TENTAZIONE): AV. ALICIO ARANTES CAMPOLINA 105, VILA ESPERANÇA — ACESSO PELA RUA IGUAÇU 108-60 — HORÁRIO 9-11H E 14-16H, SEG A SEX",itens:[
+   ["FRPTCANMI000060","S/OSSO S/PELE FILE PEITO PCT20X1 CX20KG",5.0,100.0]]},
+ {codigo:"072394",cliente:"RG COMERCIO DE ALIMENTOS LTDA",cidade:"MARINGA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",2.0,40.0]]},
+ {codigo:"072711",cliente:"SRA. DESCONTAO GENEROS ALIMENTICIOS LTDA",cidade:"MARIALVA/PR",itens:[
+   ["COMPRO000081","PAO DE QUEIJO 300G",5.0,48.0],["COMPRO000094","LASANHA BOLONHESA",5.0,36.0],
+   ["COMPRO000095","LASANHA QUATRO QUEIJOS",2.0,14.4],["COMPRO000096","LASANHA DE FRANGO",3.0,21.6]]},
+ {codigo:"074671",cliente:"B R DOS SANTOS MERCADO LTDA",cidade:"MANDAGUARI/PR",itens:[
+   ["COMPRO000068","BATATA PALITO 400G",1.0,10.0],["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"075093",cliente:"56.345.942 ROSIMERI DA SILVA PECORARE VIEIRA",cidade:"MARIALVA/PR",itens:[["COMPRO000066","EMPANADO 1KG",1.0,7.0]]},
+ {codigo:"076008",cliente:"CLAUDEMIR ALEXANDRE DA SILVA",cidade:"MARINGA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",4.0,80.0]]},
+ {codigo:"076372",cliente:"48.330.095 NICOLE ALVES AMERICO",cidade:"MARINGA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",2.0,40.0]]}
+]},
+
+{numero:"5000736",transportadora:"GONCALVES & TORTOLA S/A",motorista:"MAICON DOUGLAS DOS SANTOS SAGRILO",data:"09/09/2026",hora:"15:07",entregas:28,totalCx:164.0,totalKg:2267.6,pedidos:[
+ {codigo:"001682",cliente:"BATISTA & IZEPE LTDA",cidade:"MANDAGUACU/PR",itens:[
+   ["FRASCANMI000047","C/OSSO COXINHA DA ASA BDJ",3.0,31.5],["FRASCANMI000048","C/OSSO MEIO DAS ASAS BDJ",3.0,30.6],
+   ["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ",2.0,26.0],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ",5.0,56.0]]},
+ {codigo:"001989",cliente:"BRASEIRO COMERCIO DE GENEROS ALIMENTICIOS LTDA",cidade:"MARINGA/PR",itens:[["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9]]},
+ {codigo:"004324",cliente:"DIONISIO DOS SANTOS MERCEARIA",cidade:"PAICANDU/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"006370",cliente:"I ROGELIO & CIA. LTDA",cidade:"ITAMBE/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000067","BATATA PALITO 2KG",2.0,20.0],
+   ["COMPRO000082","PAO DE QUEIJO 800G",2.0,19.2],["FRMDCANMI000022","MIUDOS MOELA",1.0,20.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0],["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0]]},
+ {codigo:"007655",cliente:"L. S. MARINGA ALIMENTICIOS LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0]]},
+ {codigo:"008020",cliente:"LEJON COMERCIO ATACADISTA DE PRODUTOS ALIMENTICIOS LTDA",cidade:"MARINGA/PR",itens:[
+   ["FRSACANMI000001","SAMBIQUIRA",17.0,306.0]]},
+ {codigo:"009630",cliente:"MERCADO KATAYAMA LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000081","PAO DE QUEIJO 300G",1.0,9.6],["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6]]},
+ {codigo:"009840",cliente:"MERCADO SUPER FACIL LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000066","EMPANADO 1KG",1.0,7.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],
+   ["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6],["FRMDCANMI000016","MIUDOS FIGADO",5.0,100.0]]},
+ {codigo:"010453",cliente:"MOLINA & MOLINA LTDA",cidade:"IVATUBA/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0]]},
+ {codigo:"010928",cliente:"O. CATANIO & CIA LTDA.",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["COMPRO000069","BATATA PALITO 1,1KG",5.0,49.5],["COMPRO000095","LASANHA QUATRO QUEIJOS",1.0,7.2],
+   ["COMPRO000098","BATATA NOISETTE",1.0,10.0],["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0],
+   ["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0],
+   ["FRMDCANMI000034","MIUDOS CORACAO BDJ20X600G CX12KG",1.0,12.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"015661",cliente:"Y. Y. ROVERI LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000068","BATATA PALITO 400G",1.0,10.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9]]},
+ {codigo:"019403",cliente:"I.C JACOB DA SILVA EIRELI",cidade:"MARINGA/PR",itens:[["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",10.0,200.0]]},
+ {codigo:"030100",cliente:"OLIVEIRA SILVA INDUSTRIA E COMERCIO DE MASSAS E SALGADOS LTD",cidade:"MARINGA/PR",itens:[
+   ["FRPTCANMI000052","FILEZINHO SASSAMI S/OSSO PCT10KG CX PP20KG",35.0,700.0]]},
+ {codigo:"036021",cliente:"COMERCIO DE GENEROS ALIMENTICIOS SM LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000081","PAO DE QUEIJO 300G",1.0,9.6],["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6]]},
+ {codigo:"036828",cliente:"JOSE ALEXANDRE ROSA RESTAURANTE LTDA",cidade:"MANDAGUACU/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO",2.0,20.0],["FRASCANMI000010","COXINHA DA ASA IQF",2.0,20.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",5.0,50.0]]},
+ {codigo:"037694",cliente:"BRIOCHE CROCANTE PANIFICADORA E CONFEITARIA LTDA",cidade:"MARINGA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",3.0,60.0]]},
+ {codigo:"037718",cliente:"M. N. INHESTA & CIA LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000101","EMPANADO TILAPIA 400G",1.0,3.2],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0]]},
+ {codigo:"056475",cliente:"SUPERMERCADO A. ANDRE LTDA",cidade:"PAICANDU/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000067","BATATA PALITO 2KG",1.0,10.0]]},
+ {codigo:"057447",cliente:"PIZZA SHOW LTDA",cidade:"MANDAGUACU/PR",obs:"ENTREGAR APÓS AS 16:30H",itens:[["FRPTCANMI000010","FILEZINHO SASSAMI",3.0,30.0]]},
+ {codigo:"057674",cliente:"SMART AUTO COMERCIO LTDA",cidade:"MARINGA/PR",itens:[["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0]]},
+ {codigo:"057961",cliente:"MERCADO GHIZELLINI LTDA",cidade:"MANDAGUACU/PR",itens:[
+   ["FRASCANMI000011","MEIO DA ASA IQF",2.0,20.0],["FRCSCANMI000009","COXA IQF",1.0,10.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",1.0,10.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0],
+   ["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0]]},
+ {codigo:"061216",cliente:"GS SARAIVA RESTAURANTE LTDA",cidade:"MARINGA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0]]},
+ {codigo:"067336",cliente:"DELIVIO E ALMEIDA COMERCIO DE ALIMENTOS LTDA",cidade:"MARINGA/PR",itens:[["COMPRO000066","EMPANADO 1KG",1.0,7.0]]},
+ {codigo:"068120",cliente:"SUSE GUILHERME BORTOLO",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",2.0,6.0],["COMPRO000067","BATATA PALITO 2KG",1.0,10.0],
+   ["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0]]},
+ {codigo:"071108",cliente:"49.232.724 VERONICA PALHARES GUIDINO",cidade:"MANDAGUACU/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0]]},
+ {codigo:"072500",cliente:"MERCADO GIGLIOLLI LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],
+   ["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6]]},
+ {codigo:"072781",cliente:"R. R. VALESA COMERCIO LTDA",cidade:"JANDAIA DO SUL/PR",itens:[["FRASCANMI000010","COXINHA DA ASA IQF",2.0,20.0]]},
+ {codigo:"074018",cliente:"VERCADINHO LTDA",cidade:"MARINGA/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0],["PEFLCANMI000002","FILE DE TILAPIA IQF",1.0,10.4]]}
+]},
+
+{numero:"5000771",transportadora:"R C - LOGISTICA LTDA",motorista:"RAFAEL BRUNO COMO",data:"09/09/2026",hora:"15:41",entregas:11,totalCx:158.0,totalKg:1814.1,pedidos:[
+ {codigo:"002380",cliente:"CARREIRA & IRMAOS LTDA",cidade:"CAMPO MOURAO/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",11.0,198.0],["FRCSCANMI000051","C/OSSO SOBRECOXA BDJ PV",3.0,39.0],
+   ["FRCSCANMI000052","C/OSSO COXA BDJ PV CX11,1KG",4.0,44.4],["FRPTCANMI000061","S/OSSO FILEZINHO SASSAMI BDJ",14.0,159.6],
+   ["FRPTCANMI000062","S/OSSO FILE PEITO BDJ",36.0,403.2]]},
+ {codigo:"005920",cliente:"G R F COSTA - DISTRIBUIDORA DE CARNES LTDA",cidade:"JANIOPOLIS/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],
+   ["COMPRO000094","LASANHA BOLONHESA",1.0,7.2]]},
+ {codigo:"005956",cliente:"MERCADO CONFIANCA LTDA",cidade:"FAROL/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000066","EMPANADO 1KG",1.0,7.0],
+   ["COMPRO000067","BATATA PALITO 2KG",1.0,10.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],["COMPRO000094","LASANHA BOLONHESA",1.0,7.2],
+   ["COMPRO000095","LASANHA QUATRO QUEIJOS",1.0,7.2],["COMPRO000096","LASANHA DE FRANGO",1.0,7.2],
+   ["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0],["FRMDCANMI000022","MIUDOS MOELA",1.0,20.0],
+   ["FRMDCANMI000034","MIUDOS CORACAO BDJ",1.0,12.0],
+   ["FRPECANME000003","CARNE C/OSSO PES GRADE A PCT2X7,5KG CX15KG G2",3.0,45.0]]},
+ {codigo:"007333",cliente:"JOSE PASCHOAL DO PRADO E CIA LTDA",cidade:"QUARTO CENTENARIO/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO",1.0,10.0],["COMPRO000069","BATATA PALITO 1,1KG",5.0,49.5],
+   ["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0],["COMPRO000100","EMPANADO(FUT CHICKEN)1KG",1.0,7.0],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",5.0,50.0],["FRASCANMI000011","MEIO DA ASA IQF",5.0,50.0],
+   ["FRCSCANMI000009","COXA IQF",3.0,30.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",5.0,50.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",5.0,50.0]]},
+ {codigo:"007333",cliente:"JOSE PASCHOAL DO PRADO E CIA LTDA",cidade:"JANIOPOLIS/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",2.0,20.0],["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0]]},
+ {codigo:"010981",cliente:"OKUMURA E OKUMURA LTDA",cidade:"GOIOERE/PR",itens:[
+   ["COMPRO000066","EMPANADO 1KG",1.0,7.0],["COMPRO000068","BATATA PALITO 400G",2.0,20.0],
+   ["COMPRO000069","BATATA PALITO 1,1KG",3.0,29.7],["COMPRO000100","EMPANADO(FUT CHICKEN)1KG",1.0,7.0]]},
+ {codigo:"012230",cliente:"CAFE VO DORA LTDA",cidade:"GOIOERE/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",10.0,200.0]]},
+ {codigo:"069647",cliente:"AJM BRUNETTA COMERCIO DE ALIMENTOS LTDA",cidade:"CAMPO MOURAO/PR",itens:[["COMPRO000067","BATATA PALITO 2KG",5.0,50.0]]},
+ {codigo:"071709",cliente:"SABOR DA CASA MINI MERCADO E RESTAURANTE LTDA",cidade:"JANIOPOLIS/PR",itens:[
+   ["COMPRO000009","ANEIS DE CEBOLA EMPANADAS PACOTE1,1KG CX11KG",1.0,11.0],["COMPRO000094","LASANHA BOLONHESA",1.0,7.2],
+   ["COMPRO000095","LASANHA QUATRO QUEIJOS",1.0,7.2],["COMPRO000096","LASANHA DE FRANGO",1.0,7.2]]},
+ {codigo:"072247",cliente:"51.522.918 MATHEUS PRIMAK RENISZ",cidade:"FAROL/PR",itens:[
+   ["COMPRO000065","EMPANADO 300G",1.0,3.0],["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0],["FRASCANMI000011","MEIO DA ASA IQF",1.0,10.0],
+   ["FRCSCANMI000003","COXA E SOBRECOXA PV",2.0,36.0],["FRPTCANMI000010","FILEZINHO SASSAMI",1.0,10.0]]},
+ {codigo:"073280",cliente:"MERCADINHO MJ LTDA",cidade:"JANIOPOLIS/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000066","EMPANADO 1KG",1.0,7.0],
+   ["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],["FRASCANMI000010","COXINHA DA ASA IQF",1.0,10.0]]}
+]},
+
+{numero:"5000813",transportadora:"WDB TRANSPORTES LTDA",motorista:"GUILHERME PARIZI KAUFMANN",data:"09/09/2026",hora:"16:59",entregas:23,totalCx:309.0,totalKg:4986.3,pedidos:[
+ {codigo:"011652",cliente:"PLANOS SUPERMERCADO EIRELI",cidade:"CAMBE/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",5.0,90.0],["FRCSCANMI000053","S/OSSO C/PELE FILE COXA/SOBRECOXA",2.0,40.0],
+   ["FRPTCANMI000004","PEITO C/OSSO PV",1.0,18.0]]},
+ {codigo:"014564",cliente:"SUPERMERCADO TONHAO LTDA",cidade:"LONDRINA/PR",itens:[["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",1.0,18.0]]},
+ {codigo:"014564",cliente:"SUPERMERCADO TONHAO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",1.0,20.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",3.0,60.0]]},
+ {codigo:"014564",cliente:"SUPERMERCADO TONHAO LTDA",cidade:"IBIPORA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",5.0,90.0],["FRINCANMI000002","FRANGO C/ MIUDOS",4.0,80.0]]},
+ {codigo:"014564",cliente:"SUPERMERCADO TONHAO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",7.0,126.0],["FRINCANMI000002","FRANGO C/ MIUDOS",7.0,140.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",7.0,140.0]]},
+ {codigo:"014564",cliente:"SUPERMERCADO TONHAO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",4.0,72.0],["FRINCANMI000002","FRANGO C/ MIUDOS",2.0,40.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",5.0,100.0]]},
+ {codigo:"014687",cliente:"SUPERMERCADOS QUINELATO LTDA",cidade:"LONDRINA/PR",itens:[
+   ["COMPRO000064","FILEZINHO EMPANADO 1KG",5.0,35.0],["FRASCANMI000037","CARNE RESFRIADA ASA PV",2.0,40.0],
+   ["FRCSCANMI000053","S/OSSO C/PELE FILE COXA/SOBRECOXA",2.0,40.0],["FRMDCANMI000030","PESCOCO S/PELE C/OSSO",2.0,36.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",8.0,160.0]]},
+ {codigo:"037781",cliente:"PIZZA EXPRESS BR LTDA",cidade:"CAMBE/PR",obs:"LIGAR PRO ABRAÃO OU APÓS 16H",itens:[["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",4.0,80.0]]},
+ {codigo:"038216",cliente:"A R D PEDRO - ME",cidade:"IBIPORA/PR",obs:"CLIENTE FECHA ÀS 14H",itens:[
+   ["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0],["FRPTCANMI000033","FILE DE PEITO PV",1.0,20.0]]},
+ {codigo:"042513",cliente:"PIZZA EXPRESS SANTO AMARO LTDA",cidade:"CAMBE/PR",obs:"LIGAR PRO ABRAÃO OU APÓS 16H",itens:[["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",4.0,80.0]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"CAMBE/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000059","POLENTA PALITO",1.0,10.0],
+   ["COMPRO000067","BATATA PALITO 2KG",4.0,40.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",17.0,306.0],["FRINCANMI000002","FRANGO C/ MIUDOS",3.0,60.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0],["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",10.0,200.0],
+   ["PEFLCANMI000002","FILE DE TILAPIA IQF",1.0,10.4]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"LONDRINA/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",2.0,20.0],["FRASCANMI000029","COXINHA DA ASA PV",2.0,40.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",5.0,90.0],["FRINCANMI000002","FRANGO C/ MIUDOS",2.0,40.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0],["FRPTCANMI000021","FILE DE PEITO S/PELE",2.0,20.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",5.0,100.0],["PEFLCANMI000002","FILE DE TILAPIA IQF",1.0,10.4]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"CAMBE/PR",itens:[
+   ["COMPRO000067","BATATA PALITO 2KG",4.0,40.0],["COMPRO000068","BATATA PALITO 400G",1.0,10.0],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",5.0,50.0],["FRASCANMI000011","MEIO DA ASA IQF",2.0,20.0],
+   ["FRASCANMI000029","COXINHA DA ASA PV",5.0,100.0],["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",17.0,306.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",4.0,40.0],["FRINCANMI000002","FRANGO C/ MIUDOS",3.0,60.0],
+   ["FRPTCANMI000010","FILEZINHO SASSAMI",2.0,20.0],["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",5.0,100.0]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"IBIPORA/PR",itens:[
+   ["COMPRO000008","FILEZINHO EMPANADO 700G",1.0,7.0],["COMPRO000059","POLENTA PALITO",1.0,10.0],
+   ["COMPRO000067","BATATA PALITO 2KG",8.0,80.0],["FRASCANMI000029","COXINHA DA ASA PV",5.0,100.0],
+   ["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",20.0,360.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",2.0,20.0],
+   ["FRINCANMI000002","FRANGO C/ MIUDOS",5.0,100.0],["FRPTCANMI000021","FILE DE PEITO S/PELE",1.0,10.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",7.0,140.0]]},
+ {codigo:"061132",cliente:"ALMEIDA MERCADOS - COMERCIO, DISTRIBUIDORA E IMPORTADORA LTD",cidade:"IBIPORA/PR",itens:[
+   ["COMPRO000059","POLENTA PALITO",1.0,10.0],["COMPRO000065","EMPANADO 300G",1.0,3.0],
+   ["COMPRO000081","PAO DE QUEIJO 300G",1.0,9.6],["COMPRO000099","EMPANADO(FUT CHICKEN)300G",1.0,3.0],
+   ["FRASCANMI000010","COXINHA DA ASA IQF",6.0,60.0],["FRCSCANMI000018","COXA E SOBRECOXA INDIVIDUAL",11.0,198.0],
+   ["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",3.0,30.0],["FRINCANMI000002","FRANGO C/ MIUDOS",3.0,60.0],
+   ["FRPTCANMI000045","FILE DE PEITO INDIVIDUAL",5.0,100.0]]},
+ {codigo:"068996",cliente:"A. K. MIYAZAKI DOS SANTOS & CIA LTDA",cidade:"LONDRINA/PR",itens:[["FRPTCANMI000033","FILE DE PEITO PV",3.0,60.0]]},
+ {codigo:"070691",cliente:"THIAGO JUN MIYAMOTO RESTAURANTE LTDA",cidade:"LONDRINA/PR",itens:[
+   ["COMPRO000003","MANDIOCA TOLETE PACOTE1KG CX12KG",1.0,12.0],["COMPRO000009","ANEIS DE CEBOLA 1,1KG",1.0,11.0],
+   ["COMPRO000059","POLENTA PALITO",1.0,10.0]]},
+ {codigo:"071758",cliente:"E. P. ALBINO & CIA LTDA",cidade:"LONDRINA/PR",itens:[
+   ["COMPRO000066","EMPANADO 1KG",1.0,7.0],["COMPRO000069","BATATA PALITO 1,1KG",1.0,9.9],
+   ["COMPRO000082","PAO DE QUEIJO 800G",1.0,9.6]]},
+ {codigo:"071876",cliente:"MINIMERCADO PARREIRA LTDA",cidade:"LONDRINA/PR",obs:"FECHA DAS 13H ÀS 15H",itens:[
+   ["COMPRO000068","BATATA PALITO 400G",1.0,10.0],["FRPTCANMI000010","FILEZINHO SASSAMI",3.0,30.0]]},
+ {codigo:"071995",cliente:"ANTONIO CARLOS DE FREITAS ROCHA",cidade:"LONDRINA/PR",itens:[
+   ["FRMDCANMI000015","MIUDOS CORACAO",2.0,40.0],["FRPTCANMI000062","S/OSSO FILE PEITO BDJ",10.0,112.0]]},
+ {codigo:"072520",cliente:"ROYAL FRUTAS COMERCIO VAREJISTA DE MERCADORIAS EM GERAL LTDA",cidade:"LONDRINA/PR",itens:[
+   ["PEFLCANMI000012","PEIXE TEMPERADO FILE TILAPIA",1.0,6.0]]},
+ {codigo:"073003",cliente:"S B CONVENIENCIA E ALIMENTOS LTDA",cidade:"LONDRINA/PR",itens:[["COMPRO000068","BATATA PALITO 400G",1.0,10.0]]},
+ {codigo:"073741",cliente:"JOSE GERALDO RIGUETE",cidade:"IBIPORA/PR",itens:[
+   ["FRASCANMI000010","COXINHA DA ASA IQF",3.0,30.0],["FRCSCANMI000059","COXA E SOBRECOXA A PASSARINHO IQF",3.0,30.0]]}
+]}
+];
+
+// ---- auth ----
+// ATENÇÃO: isto é apenas uma trava de uso (evita cliques acidentais/curiosos),
+// não é segurança real — qualquer pessoa que veja o código-fonte vê a senha.
+// Troque a senha abaixo antes de publicar, e se precisar de segurança de
+// verdade, isso precisa ficar atrás de login no servidor que for hospedar.
+const ADMIN_PASSWORD = "cancao2026";
+const ADMIN_KEY = "cargas_admin_v1";
+
+function isAdmin(){
+  return sessionStorage.getItem(ADMIN_KEY) === "1";
+}
+function tryEnterAdmin(){
+  const pass = prompt("Senha de administrador para alterar status:");
+  if(pass === null) return false;
+  if(pass === ADMIN_PASSWORD){
+    sessionStorage.setItem(ADMIN_KEY, "1");
+    return true;
+  }
+  alert("Senha incorreta.");
+  return false;
+}
+function updateAdminBar(){
+  const label = document.getElementById('adminState');
+  const btn = document.getElementById('adminToggle');
+  if(isAdmin()){
+    label.textContent = "Modo admin (pode alterar status)";
+    label.className = "admin-on";
+    btn.textContent = "Sair do modo admin";
+  } else {
+    label.textContent = "Modo consulta (somente leitura)";
+    label.className = "";
+    btn.textContent = "Entrar como admin";
+  }
+}
+document.getElementById('adminToggle').onclick = ()=>{
+  if(isAdmin()){
+    sessionStorage.removeItem(ADMIN_KEY);
+    updateAdminBar();
+  } else {
+    if(tryEnterAdmin()) updateAdminBar();
+  }
+};
+
+// ---- sincronização em tempo real (Firebase Realtime Database) ----
+// 1) Crie um projeto grátis em https://console.firebase.google.com
+// 2) Ative "Realtime Database" (modo teste já serve para começar)
+// 3) Nas regras do banco, use algo como:
+//      { "rules": { "cargas": { ".read": true, ".write": true } } }
+// 4) Cole as credenciais do seu projeto (Configurações do projeto > Config do SDK) abaixo:
+const firebaseConfig = {
+  apiKey: "COLE_SUA_API_KEY_AQUI",
+  authDomain: "SEU-PROJETO.firebaseapp.com",
+  databaseURL: "https://SEU-PROJETO-default-rtdb.firebaseio.com",
+  projectId: "SEU-PROJETO"
+};
+
+const FIREBASE_CONFIGURADO = firebaseConfig.apiKey !== "COLE_SUA_API_KEY_AQUI";
+
+const STAGE_LABELS = ["Veículo chegou na planta","Separado","Carregado","Faturado"];
+// statusMap[viagemNumero] = {1:bool,2:bool,3:bool,4:bool} -- 4 etapas independentes,
+// não sequenciais (ex.: carga pode estar "Separada" antes do veículo chegar na planta)
+let statusMap = {};
+let dbRef = null;
+
+function setSyncBar(state, text){
+  const bar = document.getElementById('syncBar');
+  bar.className = 'sync-bar ' + state;
+  document.getElementById('syncText').textContent = text;
+}
+
+// Enquanto o Firebase não é configurado, ou se ele falhar, o painel funciona
+// em modo local (armazenamento só neste navegador) para não travar o uso.
+const LOCAL_KEY = "cargas_status_v2";
+function loadLocal(){
+  try{return JSON.parse(localStorage.getItem(LOCAL_KEY)||"{}");}catch(e){return {};}
+}
+function saveLocal(s){
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(s));
+}
+
+function iniciarSync(){
+  if(!FIREBASE_CONFIGURADO){
+    statusMap = loadLocal();
+    setSyncBar('sync-off', 'Atualização em tempo real não configurada — usando apenas este navegador. Veja as instruções no código-fonte (const firebaseConfig).');
+    render();
+    return;
+  }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    dbRef = firebase.database().ref('cargas');
+    dbRef.on('value', (snapshot)=>{
+      statusMap = snapshot.val() || {};
+      setSyncBar('sync-ok', 'Conectado — status sincronizado em tempo real para todos que abrirem este link.');
+      render();
+    }, (err)=>{
+      console.error(err);
+      setSyncBar('sync-err', 'Erro ao conectar à atualização em tempo real. Verifique a configuração do Firebase.');
+    });
+  }catch(e){
+    console.error(e);
+    statusMap = loadLocal();
+    setSyncBar('sync-err', 'Falha ao iniciar a atualização em tempo real — usando apenas este navegador.');
+    render();
+  }
+}
+
+function setEtapa(numero, n, valor){
+  if(FIREBASE_CONFIGURADO && dbRef){
+    dbRef.child(numero).child(n).set(valor);
+  } else {
+    if(!statusMap[numero]) statusMap[numero] = {};
+    statusMap[numero][n] = valor;
+    saveLocal(statusMap);
+    render();
+  }
+}
+
+function fmt(n){
+  return Number(n).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
+}
+
+function pedidoTotais(p){
+  let cx=0,kg=0;
+  p.itens.forEach(it=>{cx+=it[2]; kg+=it[3];});
+  return {cx,kg};
+}
+
+function render(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = "";
+  const busca = document.getElementById('busca').value.trim().toLowerCase();
+  const filtroStatus = document.getElementById('filtroStatus').value;
+
+  let visiveis = 0;
+  const contagem = [0,0,0,0]; // quantas cargas têm a etapa N marcada (independente das outras)
+  viagens.forEach(v=>{
+    const st = statusMap[v.numero] || {};
+    for(let n=1;n<=4;n++){ if(st[n]) contagem[n-1]++; }
+  });
+
+  viagens.forEach(v=>{
+    const st = statusMap[v.numero] || {};
+    const matchesStatus = !filtroStatus || !!st[filtroStatus];
+    const haystack = (v.numero+" "+v.transportadora+" "+v.motorista+" "+
+      v.pedidos.map(p=>p.cliente+" "+p.cidade).join(" ")).toLowerCase();
+    const matchesBusca = !busca || haystack.includes(busca);
+    if(!matchesStatus || !matchesBusca) return;
+    visiveis++;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.innerHTML = `
+      <div class="head-left">
+        <div class="viagem-id">Viagem ${v.numero} <span class="chev">&#9662;</span></div>
+        <div class="head-meta">${v.transportadora} &middot; ${v.motorista} &middot; ${v.data} ${v.hora} &middot; <span class="badge">${v.entregas} entregas</span></div>
+      </div>
+      <div class="head-right">
+        <div class="totals"><b>${fmt(v.totalCx)}</b> cx / <b>${fmt(v.totalKg)}</b> kg</div>
+        <div class="status-track" data-viagem="${v.numero}"></div>
+      </div>`;
+
+    const track = head.querySelector('.status-track');
+    STAGE_LABELS.forEach((label, idx)=>{
+      const n = idx+1;
+      const checked = !!st[n];
+      const btn = document.createElement('button');
+      btn.className = 'status-btn' + (checked ? ' on-'+n : '');
+      btn.innerHTML = `<span class="dot">${checked ? '&#10003;' : ''}</span>${!isAdmin() ? '<span class="lock-icon">&#128274;</span>' : ''}${label}`;
+      btn.title = isAdmin() ? "Clique para marcar/desmarcar" : "Requer login de admin para alterar";
+      btn.onclick = (ev)=>{
+        ev.stopPropagation();
+        if(!isAdmin()){
+          if(!tryEnterAdmin()) return;
+          updateAdminBar();
+        }
+        setEtapa(v.numero, n, !checked);
+      };
+      track.appendChild(btn);
+    });
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    v.pedidos.forEach((p, pi)=>{
+      const tot = pedidoTotais(p);
+      const pedidoEl = document.createElement('div');
+      pedidoEl.className = 'pedido';
+      pedidoEl.innerHTML = `
+        <div class="pedido-head">
+          <div><span class="pedido-cliente">${p.codigo ? p.codigo+' - ' : ''}${p.cliente}</span><span class="pedido-cidade">${p.cidade}</span></div>
+          <div class="pedido-tot">${fmt(tot.cx)} cx / ${fmt(tot.kg)} kg</div>
+        </div>
+        ${p.obs ? `<div class="pedido-obs">&#9888; ${p.obs}</div>` : ''}
+        <div class="itens">
+          <table>
+            <thead><tr><th>Código</th><th>Produto</th><th>CX</th><th>KG</th></tr></thead>
+            <tbody>
+              ${p.itens.map(it=>`<tr><td class="codigo">${it[0]}</td><td>${it[1]}</td><td class="num">${fmt(it[2])}</td><td class="num">${fmt(it[3])}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+      const ph = pedidoEl.querySelector('.pedido-head');
+      const itensEl = pedidoEl.querySelector('.itens');
+      ph.onclick = ()=> itensEl.classList.toggle('open');
+      body.appendChild(pedidoEl);
+    });
+
+    head.onclick = ()=> body.classList.toggle('open');
+    card.appendChild(head);
+    card.appendChild(body);
+    grid.appendChild(card);
+  });
+
+  if(visiveis===0){
+    grid.innerHTML = '<div class="empty">Nenhuma carga encontrada com esse filtro.</div>';
+  }
+
+  const stats = document.getElementById('stats');
+  const total = viagens.length;
+  stats.innerHTML = `
+    <div class="stat"><b>${total}</b>Total de cargas</div>
+    <div class="stat"><b>${contagem[0]}</b>Na planta</div>
+    <div class="stat"><b>${contagem[1]}</b>Separado</div>
+    <div class="stat"><b>${contagem[2]}</b>Carregado</div>
+    <div class="stat"><b>${contagem[3]}</b>Faturado</div>
+  `;
+  updateAdminBar();
+}
+
+document.getElementById('busca').addEventListener('input', render);
+document.getElementById('filtroStatus').addEventListener('change', render);
+iniciarSync();
+</script>
+</body>
+</html>
